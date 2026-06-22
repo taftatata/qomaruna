@@ -1,0 +1,70 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// NOTE (Firebase substitution):
+// The user's original spec asked for Firebase Firestore with collections
+// `users`, `blood_logs`, `qada_list`. Because Firebase cannot be initialised
+// inside this sandbox, we persist the EXACT SAME document shape via Prisma +
+// SQLite. The three models below mirror the Firestore collections one-to-one
+// (uid / userId as Firestore document IDs, JSON-style fields where needed).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Firestore collection: users
+// ───────────────────────────────────────────────────────────────────────────
+model User {
+  id            String      @id @default(cuid())
+  uid           String      @unique // Firebase UID equivalent
+  menarcheDate  DateTime? // Tanggal menarche pertama
+  adatHaid      Int         @default(6) // Durasi rata-rata haid (hari)
+  adatSuci      Int         @default(23) // Rata-rata masa suci (hari)
+  mustahadahCat String      @default("MUBTADAAH_MUMAYYIZAH") // 7 enum string
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  bloodLogs     BloodLog[]
+  qadaList      QadaEntry[]
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Firestore collection: blood_logs
+// ───────────────────────────────────────────────────────────────────────────
+model BloodLog {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startTime    DateTime // Timestamp presisi menit
+  endTime      DateTime? // null = masih berlangsung
+  colorWeight  Int // 1-5 (Keruh..Hitam)
+  colorLabel   String // "Hitam"|"Merah"|"Cokelat"|"Kuning"|"Keruh"
+  traitWeight  Int // 1-4
+  traitLabel   String // "Kental & Berbau"|...
+  isKapasPutih Boolean   @default(false) // Verifikasi fisik (tes kapas)
+  note         String?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, startTime])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Firestore collection: qada_list
+// ───────────────────────────────────────────────────────────────────────────
+model QadaEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prayerName String // "Zuhur"|"Asar"|"Magrib"|"Isya"|"Subuh"
+  prayerDate DateTime // Tanggal salat yang wajib diqada
+  reason     String // "AWAL_HAID"|"AKHIR_HAID_JAMAK"|...
+  isResolved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([userId, prayerDate])
+}
