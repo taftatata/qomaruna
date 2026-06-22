@@ -9,11 +9,54 @@
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { ColorWeight, TraitWeight } from "@/lib/fiqh/types";
+import { ColorWeight, MustahadahCategory, TraitWeight } from "@/lib/fiqh/types";
 
 export const dynamic = "force-dynamic";
 
 const DEMO_UID = "demo-user-1";
+
+// PATCH /api/user
+//   Update adatHaid, adatSuci, mustahadahCat untuk user demo.
+export async function PATCH(req: Request) {
+  const body = await req.json().catch(() => ({}));
+  const data: Record<string, unknown> = {};
+
+  if (typeof body.adatHaid === "number" && body.adatHaid >= 1 && body.adatHaid <= 15) {
+    data.adatHaid = body.adatHaid;
+  }
+  if (typeof body.adatSuci === "number" && body.adatSuci >= 15 && body.adatSuci <= 60) {
+    data.adatSuci = body.adatSuci;
+  }
+  if (
+    typeof body.mustahadahCat === "string" &&
+    Object.values(MustahadahCategory).includes(body.mustahadahCat as MustahadahCategory)
+  ) {
+    data.mustahadahCat = body.mustahadahCat;
+  }
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json(
+      { error: "Tidak ada field valid untuk diupdate" },
+      { status: 400 },
+    );
+  }
+
+  const user = await db.user.update({
+    where: { uid: DEMO_UID },
+    data,
+  });
+
+  return NextResponse.json({
+    id: user.id,
+    uid: user.uid,
+    menarcheDate: user.menarcheDate,
+    adatHaid: user.adatHaid,
+    adatSuci: user.adatSuci,
+    mustahadahCat: user.mustahadahCat,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  });
+}
 
 export async function GET() {
   // upsert untuk menghindari race condition saat beberapa request paralel

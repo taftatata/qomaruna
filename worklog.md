@@ -78,3 +78,41 @@ Stage Summary:
   * TUGAS 3 (UI): Status dashboard (4 color states), blood entry form (5 color + 4 trait buttons with weight icons), interactive calendar (color-coded days), qada list (auto-populated), FAB Cek Kesucian modal (drives SUCI status).
 - Screenshots saved: /home/z/my-project/download/mobile-viewport.png and desktop-viewport.png.
 - Project ready for delivery.
+
+---
+
+Task ID: 3
+Agent: main (orchestrator)
+Task: Refactor dashboard ke versi mobile-responsive dengan navbar bawah (bottom navigation pattern ala mobile apps).
+
+Work Log:
+- Read existing page.tsx, StatusDashboard, StatsCards, CekKesucianFAB untuk memahami layout dependencies.
+- Created `src/components/fiqh/BottomNav.tsx` — bottom navbar dengan 5 tab (Beranda / Catat / Kalender / Qada / Profil), active state indicator dengan framer-motion layoutId animation, badge counter untuk qada tertunggak, safe-area inset support untuk iOS notch, ukuran tombol min-h-[56px] (≥44px touch target).
+- Created `src/components/fiqh/ProfilScreen.tsx` — screen baru berisi: identity card, form pengaturan adat haid/adat suci/mustahadah (PATCH /api/user), ringkasan aturan fikih (Haid/Suci/Nifas/Tamayyiz), dan about aplikasi.
+- Added PATCH handler ke `src/app/api/user/route.ts` — update adatHaid (1-15), adatSuci (15-60), mustahadahCat (valid enum value).
+- Refactored `src/app/page.tsx`:
+  * Hapus top Tabs, ganti dengan state-driven screen switching (5 screens: beranda/catat/kalender/qada/profil).
+  * Beranda screen baru: StatusDashboard + StatsCards + Quick Action "Catat" card + Recent Logs (3 entri terbaru dengan color dot + label) + inline footer disclaimer.
+  * Main container: max-w-2xl (mobile-first), pb-28 sm:pb-32 untuk clear bottom nav.
+  * AnimatePresence transition antar screen (subtle y-translate + fade).
+- Adjusted `CekKesucianFAB.tsx` — pindah posisi dari bottom-6 ke bottom-20 sm:bottom-24 (di atas bottom nav), jadikan icon-only (lebih compact untuk mobile), sr-only label.
+- Lint: zero errors.
+- Agent Browser verification (375×812 mobile + 1280×800 desktop):
+  * Page render, no errors.
+  * Bottom nav 5 tombol muncul & fungsional — semua tab bisa switch.
+  * Beranda: status dashboard + 4 stats cards + quick action + recent logs (3 entri dari seed).
+  * Catat: form lengkap (5 warna + 4 sifat + datetime + note + submit).
+  * Kalender: month grid dengan hari berdarah berwarna.
+  * Qada: tabel qada dengan checkbox.
+  * Profil: form adat + dropdown mustahadah + ringkasan aturan + about.
+  * FAB buka modal "Verifikasi Kesucian" — dua tombol fungsional.
+  * PATCH /api/user tested — toast "Profil tersimpan" muncul, data ter-update.
+  * Console zero errors.
+  * Screenshots saved: mobile-beranda, mobile-catat, mobile-kalender, mobile-qada, mobile-profil, desktop-beranda.
+
+Stage Summary:
+- Aplikasi sekarang fully mobile-responsive dengan pattern bottom navigation (ala Instagram/WhatsApp).
+- 5 screen: Beranda (status+stats+recent), Catat (form), Kalender (color-coded calendar), Qada (list), Profil (settings+rules reference).
+- FAB Cek Kesucian tetap accessible, posisi di atas bottom nav (tidak overlap).
+- PATCH /api/user baru untuk update adat & kategori mustahadah dari screen Profil.
+- Semua interaksi terverifikasi via Agent Browser.

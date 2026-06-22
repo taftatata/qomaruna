@@ -7,11 +7,13 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Droplets } from "lucide-react";
+import { Droplets, ShieldCheck } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { StatusDashboard } from "@/components/fiqh/StatusDashboard";
@@ -20,10 +22,13 @@ import { BloodEntryForm } from "@/components/fiqh/BloodEntryForm";
 import { InteractiveCalendar } from "@/components/fiqh/InteractiveCalendar";
 import { QadaList, type QadaItem } from "@/components/fiqh/QadaList";
 import { CekKesucianFAB } from "@/components/fiqh/CekKesucianFAB";
+import { BottomNav, type ScreenKey } from "@/components/fiqh/BottomNav";
+import { ProfilScreen } from "@/components/fiqh/ProfilScreen";
 
 import {
   IbadahStatus,
   MustahadahCategory,
+  MUSTAHADAH_LABELS,
   type BloodLog,
 } from "@/lib/fiqh/types";
 
@@ -88,6 +93,7 @@ interface QadaData {
 // ──────────────────────────────────────────────────────────────────────────
 function Dashboard() {
   const qc = useQueryClient();
+  const [screen, setScreen] = React.useState<ScreenKey>("beranda");
 
   const userQuery = useQuery<UserData>({
     queryKey: ["user"],
@@ -105,7 +111,7 @@ function Dashboard() {
       if (!r.ok) throw new Error("Gagal memuat status");
       return r.json();
     },
-    refetchInterval: 60_000, // recompute tiap menit (qada/instruksi sensitif waktu)
+    refetchInterval: 60_000, // recompute tiap menit
   });
 
   const logsQuery = useQuery<BloodLogsData>({
@@ -130,6 +136,7 @@ function Dashboard() {
     qc.invalidateQueries({ queryKey: ["status"] });
     qc.invalidateQueries({ queryKey: ["blood-logs"] });
     qc.invalidateQueries({ queryKey: ["qada"] });
+    qc.invalidateQueries({ queryKey: ["user"] });
   }
 
   const isLoading =
@@ -157,20 +164,23 @@ function Dashboard() {
     isResolved: q.isResolved,
   }));
 
+  const qadaPending = statusQuery.data?.qadaPendingCount ?? 0;
+  const currentStatus = statusQuery.data?.status ?? IbadahStatus.SUCI;
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
+      {/* Header — sticky, compact for mobile */}
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
+        <div className="mx-auto max-w-2xl px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="size-9 rounded-full bg-gradient-to-br from-rose-500 to-pink-700 text-white flex items-center justify-center shrink-0">
               <Droplets className="size-5" aria-hidden />
             </div>
             <div className="min-w-0">
-              <h1 className="text-base sm:text-lg font-bold leading-tight truncate">
+              <h1 className="text-sm sm:text-base font-bold leading-tight truncate">
                 Darah dalam Perempuan
               </h1>
-              <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight truncate">
+              <p className="text-[10px] sm:text-xs text-muted-foreground leading-tight truncate">
                 Sistem Pakar Fikih Wanita · Mazhab Syafi&apos;i
               </p>
             </div>
@@ -179,102 +189,239 @@ function Dashboard() {
         </div>
       </header>
 
-      {/* Main */}
-      <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-5 sm:py-6 flex flex-col gap-5">
+      {/* Main — bottom padding to clear bottom nav (h-16 + safe area) */}
+      <main className="flex-1 mx-auto w-full max-w-2xl px-4 pt-4 pb-28 sm:pb-32 flex flex-col gap-4">
         {isLoading ? (
           <LoadingState />
         ) : (
-          <>
-            <StatusDashboard
-              status={statusQuery.data?.status ?? IbadahStatus.SUCI}
-              reason={statusQuery.data?.reason ?? ""}
-              mustahadahLabel={statusQuery.data?.mustahadahLabel}
-              instructions={statusQuery.data?.instructions}
-            />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={screen}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="flex flex-col gap-4"
+            >
+              {screen === "beranda" && (
+                <BerandaScreen
+                  status={currentStatus}
+                  reason={statusQuery.data?.reason ?? ""}
+                  mustahadahLabel={statusQuery.data?.mustahadahLabel}
+                  instructions={statusQuery.data?.instructions}
+                  totalBleedingHours={
+                    statusQuery.data?.totalBleedingHours ?? 0
+                  }
+                  totalBleedingDays={
+                    statusQuery.data?.totalBleedingDays ?? 0
+                  }
+                  mustahadahCategory={
+                    userQuery.data?.mustahadahCat ??
+                    MustahadahCategory.MUBTADAAH_MUMAYYIZAH
+                  }
+                  adatHaid={userQuery.data?.adatHaid ?? 6}
+                  adatSuci={userQuery.data?.adatSuci ?? 23}
+                  qadaPending={qadaPending}
+                  qadaTotal={statusQuery.data?.qadaTotalCount ?? 0}
+                  recentLogs={logsAsDomain.slice(0, 3)}
+                  onGoToCatat={() => setScreen("catat")}
+                />
+              )}
 
-            <StatsCards
-              totalBleedingHours={statusQuery.data?.totalBleedingHours ?? 0}
-              totalBleedingDays={statusQuery.data?.totalBleedingDays ?? 0}
-              mustahadahCategory={
-                userQuery.data?.mustahadahCat ??
-                MustahadahCategory.MUBTADAAH_MUMAYYIZAH
-              }
-              adatHaid={userQuery.data?.adatHaid ?? 6}
-              adatSuci={userQuery.data?.adatSuci ?? 23}
-              qadaPending={statusQuery.data?.qadaPendingCount ?? 0}
-              qadaTotal={statusQuery.data?.qadaTotalCount ?? 0}
-            />
+              {screen === "catat" && <BloodEntryForm onSaved={refreshAll} />}
 
-            <Tabs defaultValue="catat" className="w-full">
-              <TabsList className="grid grid-cols-3 w-full">
-                <TabsTrigger value="catat" className="min-h-[44px]">
-                  Catat Darah
-                </TabsTrigger>
-                <TabsTrigger value="kalender" className="min-h-[44px]">
-                  Kalender
-                </TabsTrigger>
-                <TabsTrigger value="qada" className="min-h-[44px]">
-                  Qada
-                  {(statusQuery.data?.qadaPendingCount ?? 0) > 0 && (
-                    <span className="ml-1.5 inline-flex items-center justify-center size-4 rounded-full bg-destructive text-white text-[10px] font-bold">
-                      {statusQuery.data?.qadaPendingCount}
-                    </span>
-                  )}
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="catat" className="mt-4">
-                <BloodEntryForm onSaved={refreshAll} />
-              </TabsContent>
-              <TabsContent value="kalender" className="mt-4">
+              {screen === "kalender" && (
                 <InteractiveCalendar logs={logsAsDomain} />
-              </TabsContent>
-              <TabsContent value="qada" className="mt-4">
+              )}
+
+              {screen === "qada" && (
                 <QadaList
                   items={qadaItems}
                   onResolvedChange={() => refreshAll()}
                 />
-              </TabsContent>
-            </Tabs>
-          </>
+              )}
+
+              {screen === "profil" && userQuery.data && (
+                <ProfilScreen user={userQuery.data} onSaved={refreshAll} />
+              )}
+            </motion.div>
+          </AnimatePresence>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t bg-muted/30">
-        <div className="mx-auto max-w-5xl px-4 py-4 text-xs text-muted-foreground space-y-1.5">
-          <p>
-            Aplikasi ini adalah alat bantu ibadah berdasarkan buku{" "}
-            <strong>&ldquo;Darah dalam Perempuan&rdquo;</strong> (Khusnul
-            Khotimah). Untuk fatwa definitif, konsultasikan dengan ulama ahli
-            fiqih wanita.
-          </p>
-          <p className="text-[11px] opacity-80">
-            Data tersimpan lokal via Prisma (substitusi Firestore).
-          </p>
-        </div>
-      </footer>
+      {/* Bottom navigation — fixed */}
+      <BottomNav
+        active={screen}
+        onChange={setScreen}
+        qadaPending={qadaPending}
+      />
 
+      {/* FAB — positioned above bottom nav, right side */}
       <CekKesucianFAB onVerified={refreshAll} />
     </div>
   );
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Beranda screen — status + stats + quick actions + recent logs
+// ──────────────────────────────────────────────────────────────────────────
+interface BerandaScreenProps {
+  status: IbadahStatus;
+  reason: string;
+  mustahadahLabel?: string;
+  instructions?: string[];
+  totalBleedingHours: number;
+  totalBleedingDays: number;
+  mustahadahCategory: MustahadahCategory;
+  adatHaid: number;
+  adatSuci: number;
+  qadaPending: number;
+  qadaTotal: number;
+  recentLogs: BloodLog[];
+  onGoToCatat: () => void;
+}
+
+function BerandaScreen({
+  status,
+  reason,
+  mustahadahLabel,
+  instructions,
+  totalBleedingHours,
+  totalBleedingDays,
+  mustahadahCategory,
+  adatHaid,
+  adatSuci,
+  qadaPending,
+  qadaTotal,
+  recentLogs,
+  onGoToCatat,
+}: BerandaScreenProps) {
+  return (
+    <div className="flex flex-col gap-4">
+      <StatusDashboard
+        status={status}
+        reason={reason}
+        mustahadahLabel={mustahadahLabel}
+        instructions={instructions}
+      />
+
+      <StatsCards
+        totalBleedingHours={totalBleedingHours}
+        totalBleedingDays={totalBleedingDays}
+        mustahadahCategory={mustahadahCategory}
+        adatHaid={adatHaid}
+        adatSuci={adatSuci}
+        qadaPending={qadaPending}
+        qadaTotal={qadaTotal}
+      />
+
+      {/* Quick action — Catat Darah */}
+      <Card className="py-4">
+        <CardContent className="px-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold text-sm">Catat Pendarahan Baru</p>
+            <p className="text-xs text-muted-foreground">
+              Pilih warna &amp; sifat darah untuk memperbarui status ibadah
+            </p>
+          </div>
+          <Button
+            onClick={onGoToCatat}
+            className="bg-rose-600 hover:bg-rose-700 text-white shrink-0"
+            size="sm"
+          >
+            + Catat
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Recent logs */}
+      <Card>
+        <CardContent className="px-4 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-sm">Catatan Terbaru</h3>
+            <Badge variant="outline" className="text-[10px]">
+              {recentLogs.length} entri
+            </Badge>
+          </div>
+          {recentLogs.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-3 text-center">
+              Belum ada catatan. Mulai catat pendarahan Anda.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {recentLogs.map((log) => (
+                <RecentLogRow key={log.id} log={log} />
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Footer disclaimer inline on Beranda */}
+      <p className="text-[10px] text-muted-foreground leading-relaxed pt-2">
+        Aplikasi ini adalah alat bantu ibadah berdasarkan buku{" "}
+        <strong>&ldquo;Darah dalam Perempuan&rdquo;</strong> (Khusnul Khotimah).
+        Untuk fatwa definitif, konsultasikan dengan ulama ahli fiqih wanita.
+        Data tersimpan lokal via Prisma (substitusi Firestore).
+      </p>
+    </div>
+  );
+}
+
+function RecentLogRow({ log }: { log: BloodLog }) {
+  const time = new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(log.startTime);
+
+  const colorHex: Record<number, string> = {
+    1: "#d1d5db",
+    2: "#eab308",
+    3: "#92400e",
+    4: "#dc2626",
+    5: "#0a0a0a",
+  };
+
+  return (
+    <li className="flex items-center gap-3 py-1.5 border-b last:border-0">
+      <span
+        className="size-3 rounded-full shrink-0 ring-1 ring-black/10"
+        style={{ backgroundColor: colorHex[log.colorWeight] ?? "#999" }}
+        aria-hidden
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium truncate">
+          {log.colorLabel} · {log.traitLabel}
+        </p>
+        <p className="text-[10px] text-muted-foreground">{time}</p>
+      </div>
+      {log.isKapasPutih && (
+        <Badge className="bg-emerald-600 text-white text-[10px] gap-1">
+          <ShieldCheck className="size-3" /> Suci
+        </Badge>
+      )}
+    </li>
+  );
+}
+
 function LoadingState() {
   return (
-    <div className="flex flex-col gap-5">
-      <Skeleton className="h-40 w-full rounded-2xl" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+    <div className="flex flex-col gap-4">
+      <Skeleton className="h-36 w-full rounded-2xl" />
+      <div className="grid grid-cols-2 gap-3">
         {[0, 1, 2, 3].map((i) => (
           <Card key={i} className="py-4">
             <CardContent className="px-4 flex flex-col gap-2">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-6 w-1/2" />
+              <Skeleton className="h-3 w-2/3" />
+              <Skeleton className="h-5 w-1/2" />
             </CardContent>
           </Card>
         ))}
       </div>
-      <Skeleton className="h-12 w-full rounded-lg" />
-      <Skeleton className="h-80 w-full rounded-xl" />
+      <Skeleton className="h-20 w-full rounded-xl" />
+      <Skeleton className="h-40 w-full rounded-xl" />
     </div>
   );
 }

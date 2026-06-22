@@ -80,15 +80,16 @@ export function CekKesucianFAB({ onVerified }: CekKesucianFABProps) {
         whileTap={{ scale: 0.95 }}
         aria-label="Cek kesucian (tes kapas)"
         className={cn(
-          "fixed bottom-6 right-4 sm:right-6 z-30",
-          "rounded-full px-5 py-4 min-h-[56px] min-w-[56px]",
+          // Sit above the bottom nav (h-16 = 64px + safe area)
+          "fixed right-4 bottom-20 sm:bottom-24 z-30",
+          "rounded-full p-4 min-h-[56px] min-w-[56px]",
           "bg-gradient-to-br from-rose-500 to-pink-600 text-white",
-          "shadow-lg shadow-rose-500/30 flex items-center gap-2 font-semibold",
+          "shadow-lg shadow-rose-500/30 flex items-center justify-center",
           "ring-2 ring-white/20",
         )}
       >
         <ShieldCheck className="size-5" />
-        <span className="hidden sm:inline text-sm">Cek Kesucian</span>
+        <span className="sr-only">Cek Kesucian</span>
       </motion.button>
 
       <Dialog open={open} onOpenChange={setOpen}>
