@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { signOut } from "next-auth/react";
 import {
   UserCircle,
   CalendarDays,
@@ -10,6 +11,8 @@ import {
   ShieldCheck,
   UserPlus,
   Loader2,
+  LogOut,
+  Mail,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,9 +42,11 @@ interface ProfilScreenProps {
     isGuest?: boolean;
   };
   onSaved: () => void;
+  /** Dipanggil saat guest menekan "Daftar / Login" — membuka LoginDialog. */
+  onLoginClick: () => void;
 }
 
-export function ProfilScreen({ user, onSaved }: ProfilScreenProps) {
+export function ProfilScreen({ user, onSaved, onLoginClick }: ProfilScreenProps) {
   const { toast } = useToast();
   const [adatHaid, setAdatHaid] = useState(String(user.adatHaid));
   const [adatSuci, setAdatSuci] = useState(String(user.adatSuci));
@@ -240,49 +245,29 @@ export function ProfilScreen({ user, onSaved }: ProfilScreenProps) {
         </CardContent>
       </Card>
 
-      {/* Login / Account — dipindah ke Profil sesuai permintaan */}
-      <AccountCard isGuest={user.isGuest ?? true} onSaved={onSaved} />
+      {/* Login / Account — guest: CTA login; logged-in: info akun + logout */}
+      <AccountCard isGuest={user.isGuest ?? true} onLoginClick={onLoginClick} />
     </div>
   );
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// AccountCard — Daftar/Login CTA (mode tamu) atau info akun (sudah login)
+// AccountCard — CTA Daftar/Login (mode tamu) atau info akun + logout (login)
 // ──────────────────────────────────────────────────────────────────────────
 function AccountCard({
   isGuest,
-  onSaved,
+  onLoginClick,
 }: {
   isGuest: boolean;
-  onSaved: () => void;
+  onLoginClick: () => void;
 }) {
-  const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
-  async function handleRegister() {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/user", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isGuest: false }),
-      });
-      if (!res.ok) throw new Error("Gagal mendaftarkan akun");
-      toast({
-        title: "Akun terdaftar",
-        description:
-          "Data Adat & catatan pendarahan Anda kini tersimpan permanen.",
-      });
-      onSaved();
-    } catch (e) {
-      toast({
-        title: "Gagal mendaftar",
-        description: (e as Error).message,
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
+  async function handleSignOut() {
+    setSigningOut(true);
+    await signOut({ redirect: false });
+    // Page akan re-render ke mode guest (session hilang).
+    setSigningOut(false);
   }
 
   return (
@@ -306,31 +291,44 @@ function AccountCard({
               </p>
             </div>
             <Button
-              onClick={handleRegister}
-              disabled={saving}
+              onClick={onLoginClick}
               className="w-full bg-rose-600 hover:bg-rose-700 text-white min-h-[44px]"
             >
-              {saving ? (
+              <UserPlus className="size-4 mr-1" /> Daftar / Login
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 p-3 flex items-start gap-2">
+              <Mail className="size-4 text-emerald-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-emerald-900 dark:text-emerald-200 mb-1">
+                  Akun terdaftar
+                </p>
+                <p className="text-[11px] text-emerald-800 dark:text-emerald-300 break-all">
+                  Data Adat &amp; catatan pendarahan tersimpan permanen dan
+                  dapat diakses lintas perangkat.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={handleSignOut}
+              disabled={signingOut}
+              variant="outline"
+              className="w-full min-h-[44px]"
+            >
+              {signingOut ? (
                 <>
-                  <Loader2 className="size-4 mr-1 animate-spin" /> Mendaftarkan...
+                  <Loader2 className="size-4 mr-1 animate-spin" /> Keluar...
                 </>
               ) : (
                 <>
-                  <UserPlus className="size-4 mr-1" /> Daftar / Login
+                  <LogOut className="size-4 mr-1" /> Keluar (kembali ke Mode
+                  Tamu)
                 </>
               )}
             </Button>
           </>
-        ) : (
-          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 p-3">
-            <p className="text-xs font-medium text-emerald-900 dark:text-emerald-200 mb-1">
-              Akun terdaftar
-            </p>
-            <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
-              Data Adat &amp; catatan pendarahan tersimpan permanen dan dapat
-              diakses lintas perangkat.
-            </p>
-          </div>
         )}
       </CardContent>
     </Card>

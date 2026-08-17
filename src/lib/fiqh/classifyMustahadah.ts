@@ -19,13 +19,10 @@
 //   7. Mutahayyirah             — bingung/lupa adat → MASA IHTIYATH.
 
 import {
-  type BloodLog,
-  type FiqhUser,
-  type IbadahStatus,
-  type MustahadahCategory,
   IbadahStatus,
   MustahadahCategory,
 } from "./types";
+import type { BloodLog, FiqhUser } from "./types";
 import { calculateHaidDuration } from "./calculateHaidDuration";
 import { HAID_MAX_DAYS, NIFAS_MAX_DAYS, NIFAS_COMMON_DAYS } from "./constants";
 

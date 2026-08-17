@@ -7,7 +7,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Droplets, ShieldCheck, PlusCircle, Sparkles } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { Droplets, ShieldCheck, PlusCircle, Sparkles, Lock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,13 +28,21 @@ import { ProfilScreen } from "@/components/fiqh/ProfilScreen";
 import { OnboardingFlow } from "@/components/fiqh/OnboardingFlow";
 import { SoftAuthBanner } from "@/components/fiqh/SoftAuthBanner";
 import { PulseCatatFAB } from "@/components/fiqh/PulseCatatFAB";
+import { LoginDialog, type LoginDialogMode } from "@/components/auth/LoginDialog";
 
 import {
   IbadahStatus,
   MustahadahCategory,
   type BloodLog,
 } from "@/lib/fiqh/types";
-import { useGuestStore } from "@/lib/stores/guest-store";
+import { useGuestStore, GUEST_DEFAULTS } from "@/lib/stores/guest-store";
+
+// ──────────────────────────────────────────────────────────────────────────
+// Konstanta
+// ──────────────────────────────────────────────────────────────────────────
+const HAS_SEEN_INITIAL_LOGIN = "hasSeenInitialLogin";
+
+type PendingAction = "catat" | "cek_kesucian" | null;
 
 // ──────────────────────────────────────────────────────────────────────────
 // Tipe respons API
@@ -101,8 +110,64 @@ function Dashboard() {
 
   // Zustand store for guestData (client-side persistence + real-time calc)
   const hydrateGuest = useGuestStore((s) => s.hydrate);
-  const resetGuest = useGuestStore((s) => s.reset);
 
+  // ── Session (NextAuth) ───────────────────────────────────────────────────
+  const { status: authStatus } = useSession();
+  const isGuest = authStatus !== "authenticated";
+
+  // ── State dialog Login & action-gate ─────────────────────────────────────
+  const [seenInitial, setSeenInitial] = React.useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(HAS_SEEN_INITIAL_LOGIN) === "true";
+  });
+  const [loginOpen, setLoginOpen] = React.useState(false);
+  const [loginMode, setLoginMode] = React.useState<LoginDialogMode>("dismissible");
+  const [pendingAction, setPendingAction] = React.useState<PendingAction>(null);
+  const [cekOpen, setCekOpen] = React.useState(false);
+  const initialShownRef = React.useRef(false);
+
+  function markSeenInitial() {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(HAS_SEEN_INITIAL_LOGIN, "true");
+    }
+    setSeenInitial(true);
+  }
+
+  /** Buka LoginDialog biasa (dismissible / mandatory sesuai mode). */
+  function requestLogin(mode: LoginDialogMode) {
+    setLoginMode(mode);
+    setLoginOpen(true);
+  }
+
+  /**
+   * Action-gate: guest mencoba Catat / Cek Kesucian → cegah akses form,
+   * buka LoginDialog mandatory (tidak bisa di-dismiss).
+   */
+  function requestAction(action: Exclude<PendingAction, null>) {
+    setPendingAction(action);
+    setLoginMode("mandatory");
+    setLoginOpen(true);
+  }
+
+  function handleLoginSuccess() {
+    markSeenInitial();
+    setLoginOpen(false);
+    // Session akan berubah → effect navigasi di bawah menangani resume.
+  }
+
+  // ── Initial Login Dialog (dismissible, sekali per kunjungan) ─────────────
+  React.useEffect(() => {
+    if (authStatus === "loading") return;
+    if (authStatus === "authenticated") return; // sudah login
+    if (seenInitial) return; // sudah pernah dilihat (localStorage)
+    if (pendingAction) return; // mandatory dialog lebih prioritas
+    if (initialShownRef.current) return;
+    initialShownRef.current = true;
+    setLoginMode("dismissible");
+    setLoginOpen(true);
+  }, [authStatus, seenInitial, pendingAction]);
+
+  // ── Query user (hanya jika login) ────────────────────────────────────────
   const userQuery = useQuery<UserData>({
     queryKey: ["user"],
     queryFn: async () => {
@@ -110,6 +175,7 @@ function Dashboard() {
       if (!r.ok) throw new Error("Gagal memuat user");
       return r.json();
     },
+    enabled: authStatus === "authenticated",
   });
 
   // Hydrate Zustand guest store dari API user data (sync server → client)
@@ -164,26 +230,114 @@ function Dashboard() {
     qc.invalidateQueries({ queryKey: ["qada"] });
   }
 
-  // ── Conditional: Onboarding gate ────────────────────────────────────────
-  if (userQuery.isLoading) {
-    return <FullScreenLoader />;
+  // ── Navigasi Guest (Catat digate → LoginDialog mandatory) ────────────────
+  function handleNav(key: ScreenKey) {
+    if (isGuest && key === "catat") {
+      requestAction("catat");
+      return;
+    }
+    setScreen(key);
   }
-  if (userQuery.data && !userQuery.data.isOnboarded) {
+
+  function handleGoToCatat() {
+    if (isGuest) {
+      requestAction("catat");
+      return;
+    }
+    setScreen("catat");
+  }
+
+  function handlePulseCatatClick() {
+    if (isGuest) {
+      requestAction("catat");
+      return;
+    }
+    setScreen("catat");
+  }
+
+  // ── Seamless resume: setelah login, lanjutkan aksi yang ditahan ──────────
+  /* eslint-disable react-hooks/set-state-in-effect -- koordinasi navigasi
+     setelah alur async login→onboarding selesai (sinkron state eksternal). */
+  React.useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    if (!pendingAction) return;
+    if (userQuery.isLoading || !userQuery.data) return;
+    if (!userQuery.data.isOnboarded) {
+      // User baru → OnboardingFlow dirender oleh gate di bawah;
+      // pendingAction dipertahankan hingga onboarding selesai.
+      return;
+    }
+    if (pendingAction === "catat") setScreen("catat");
+    else if (pendingAction === "cek_kesucian") setCekOpen(true);
+    setPendingAction(null);
+  }, [authStatus, pendingAction, userQuery.data, userQuery.isLoading]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  function handleOnboardingCompleted() {
+    refreshAll();
+    if (pendingAction === "catat") setScreen("catat");
+    else if (pendingAction === "cek_kesucian") setCekOpen(true);
+    setPendingAction(null);
+  }
+
+  // ── Loading session ──────────────────────────────────────────────────────
+  if (authStatus === "loading") {
     return (
-      <OnboardingFlow
-        initialData={{
-          menarcheDate: userQuery.data.menarcheDate ?? "",
-          adatHaid: userQuery.data.adatHaid,
-          adatSuci: userQuery.data.adatSuci,
-        }}
-        onCompleted={refreshAll}
-      />
+      <>
+        <FullScreenLoader />
+        <LoginDialog
+          open={loginOpen}
+          onOpenChange={setLoginOpen}
+          mode={loginMode}
+          onSuccess={handleLoginSuccess}
+          onDismiss={markSeenInitial}
+        />
+      </>
     );
   }
 
-  // ── Dashboard (sudah onboarding) ─────────────────────────────────────────
+  // ── Gate Onboarding (khusus user login yang belum selesai Onboarding) ────
+  if (!isGuest) {
+    if (userQuery.isLoading) {
+      return (
+        <>
+          <FullScreenLoader />
+          <LoginDialog
+            open={loginOpen}
+            onOpenChange={setLoginOpen}
+            mode={loginMode}
+            onSuccess={handleLoginSuccess}
+            onDismiss={markSeenInitial}
+          />
+        </>
+      );
+    }
+    if (userQuery.data && !userQuery.data.isOnboarded) {
+      return (
+        <>
+          <OnboardingFlow
+            initialData={{
+              menarcheDate: userQuery.data.menarcheDate ?? "",
+              adatHaid: userQuery.data.adatHaid,
+              adatSuci: userQuery.data.adatSuci,
+            }}
+            onCompleted={handleOnboardingCompleted}
+          />
+          <LoginDialog
+            open={loginOpen}
+            onOpenChange={setLoginOpen}
+            mode={loginMode}
+            onSuccess={handleLoginSuccess}
+            onDismiss={markSeenInitial}
+          />
+        </>
+      );
+    }
+  }
+
+  // ── Dashboard (guest dengan Default Adat, atau user sudah onboarding) ─────
   const isLoading =
-    statusQuery.isLoading || userQuery.isLoading || logsQuery.isLoading;
+    statusQuery.isLoading || logsQuery.isLoading;
 
   const logsAsDomain: BloodLog[] = (logsQuery.data?.logs ?? []).map((l) => ({
     id: l.id,
@@ -209,7 +363,20 @@ function Dashboard() {
 
   const qadaPending = statusQuery.data?.qadaPendingCount ?? 0;
   const currentStatus = statusQuery.data?.status ?? IbadahStatus.SUCI;
-  const isGuest = userQuery.data?.isGuest ?? true;
+  const mustahadahCat =
+    userQuery.data?.mustahadahCat ?? MustahadahCategory.MUBTADAAH_MUMAYYIZAH;
+  const effectiveAdatHaid = userQuery.data?.adatHaid ?? GUEST_DEFAULTS.adatHaid;
+  const effectiveAdatSuci = userQuery.data?.adatSuci ?? GUEST_DEFAULTS.adatSuci;
+
+  const loginDialog = (
+    <LoginDialog
+      open={loginOpen}
+      onOpenChange={setLoginOpen}
+      mode={loginMode}
+      onSuccess={handleLoginSuccess}
+      onDismiss={markSeenInitial}
+    />
+  );
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -239,10 +406,8 @@ function Dashboard() {
           <LoadingState />
         ) : (
           <>
-            {/* Soft-Auth Banner — only for guest users */}
-            {isGuest && (
-              <SoftAuthBanner onDismiss={() => {}} />
-            )}
+            {/* Guest indicator — hanya untuk user belum login */}
+            {isGuest && <SoftAuthBanner onLoginClick={() => requestLogin("mandatory")} />}
 
             <AnimatePresence mode="wait">
               <motion.div
@@ -265,36 +430,62 @@ function Dashboard() {
                     totalBleedingDays={
                       statusQuery.data?.totalBleedingDays ?? 0
                     }
-                    mustahadahCategory={
-                      userQuery.data?.mustahadahCat ??
-                      MustahadahCategory.MUBTADAAH_MUMAYYIZAH
-                    }
-                    adatHaid={userQuery.data?.adatHaid ?? 6}
-                    adatSuci={userQuery.data?.adatSuci ?? 23}
+                    mustahadahCategory={mustahadahCat}
+                    adatHaid={effectiveAdatHaid}
+                    adatSuci={effectiveAdatSuci}
                     qadaPending={qadaPending}
                     qadaTotal={statusQuery.data?.qadaTotalCount ?? 0}
                     recentLogs={logsAsDomain.slice(0, 3)}
                     hasAnyLogs={logsAsDomain.length > 0}
-                    onGoToCatat={() => setScreen("catat")}
+                    onGoToCatat={handleGoToCatat}
+                    isGuest={isGuest}
                   />
                 )}
 
-                {screen === "catat" && <BloodEntryForm onSaved={refreshAll} />}
+                {screen === "catat" && !isGuest && (
+                  <BloodEntryForm onSaved={refreshAll} />
+                )}
+                {screen === "catat" && isGuest && (
+                  <GuestGateCard
+                    onLoginClick={() => requestLogin("mandatory")}
+                  />
+                )}
 
                 {screen === "kalender" && (
                   <InteractiveCalendar logs={logsAsDomain} />
                 )}
 
-                {screen === "qada" && (
-                  <QadaList
-                    items={qadaItems}
-                    onResolvedChange={() => refreshAll()}
-                  />
-                )}
+                {screen === "qada" &&
+                  (isGuest ? (
+                    <GuestGateCard
+                      onLoginClick={() => requestLogin("mandatory")}
+                      title="Qada dilindungi login"
+                      description="Perhitungan Qada membutuhkan riwayat pendarahan Anda yang akurat. Masuk untuk melihat daftar salat yang wajib diqada."
+                    />
+                  ) : (
+                    <QadaList
+                      items={qadaItems}
+                      onResolvedChange={() => refreshAll()}
+                    />
+                  ))}
 
-                {screen === "profil" && userQuery.data && (
-                  <ProfilScreen user={userQuery.data} onSaved={refreshAll} />
-                )}
+                {screen === "profil" &&
+                  (userQuery.data || isGuest ? (
+                    <ProfilScreen
+                      user={{
+                        id: userQuery.data?.id ?? "",
+                        uid: userQuery.data?.uid ?? "guest",
+                        menarcheDate: userQuery.data?.menarcheDate ?? null,
+                        adatHaid: effectiveAdatHaid,
+                        adatSuci: effectiveAdatSuci,
+                        mustahadahCat,
+                        isOnboarded: userQuery.data?.isOnboarded ?? false,
+                        isGuest,
+                      }}
+                      onSaved={refreshAll}
+                      onLoginClick={() => requestLogin("mandatory")}
+                    />
+                  ) : null)}
               </motion.div>
             </AnimatePresence>
           </>
@@ -303,18 +494,62 @@ function Dashboard() {
 
       <BottomNav
         active={screen}
-        onChange={setScreen}
+        onChange={handleNav}
         qadaPending={qadaPending}
       />
 
       {/* FAB "Catat Darah Keluar" dengan pulse — hanya untuk user baru (no BloodLog) */}
       <PulseCatatFAB
         visible={logsAsDomain.length === 0 && screen !== "catat"}
-        onClick={() => setScreen("catat")}
+        onClick={handlePulseCatatClick}
       />
 
-      <CekKesucianFAB onVerified={refreshAll} />
+      <CekKesucianFAB
+        open={cekOpen}
+        onOpenChange={setCekOpen}
+        isGuest={isGuest}
+        onRequireLogin={() => requestAction("cek_kesucian")}
+        onVerified={refreshAll}
+      />
+
+      {loginDialog}
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Guest gate card — tampil saat Guest mencoba akses fitur yang dilindungi
+// ──────────────────────────────────────────────────────────────────────────
+function GuestGateCard({
+  onLoginClick,
+  title = "Fitur dilindungi login",
+  description = "Data pendarahan Anda sangat penting. Silakan Login agar riwayat haid dan perhitungan Fikih Anda tersimpan aman dan akurat.",
+}: {
+  onLoginClick: () => void;
+  title?: string;
+  description?: string;
+}) {
+  return (
+    <Card className="border-dashed border-2 border-rose-200 dark:border-rose-900 bg-rose-50/40 dark:bg-rose-950/20">
+      <CardContent className="px-4 py-8 flex flex-col items-center gap-3 text-center">
+        <div className="size-14 rounded-full bg-gradient-to-br from-rose-500 to-pink-700 text-white flex items-center justify-center">
+          <Lock className="size-7" aria-hidden />
+        </div>
+        <div>
+          <h3 className="font-semibold text-sm">{title}</h3>
+          <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
+            {description}
+          </p>
+        </div>
+        <Button
+          onClick={onLoginClick}
+          className="bg-rose-600 hover:bg-rose-700 text-white min-h-[48px] px-6 gap-2 shadow-lg shadow-rose-500/30"
+        >
+          <PlusCircle className="size-5" />
+          Masuk / Daftar
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -336,6 +571,7 @@ interface BerandaScreenProps {
   recentLogs: BloodLog[];
   hasAnyLogs: boolean;
   onGoToCatat: () => void;
+  isGuest: boolean;
 }
 
 function BerandaScreen({
@@ -353,6 +589,7 @@ function BerandaScreen({
   recentLogs,
   hasAnyLogs,
   onGoToCatat,
+  isGuest,
 }: BerandaScreenProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -389,6 +626,12 @@ function BerandaScreen({
                 keluar, catat di sini agar sistem dapat menghitung status
                 ibadah Anda.
               </p>
+              {isGuest && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-2">
+                  Anda sedang dalam <strong>Mode Tamu</strong> — data belum
+                  tersimpan permanen. Login agar catatan Anda aman.
+                </p>
+              )}
             </div>
             <Button
               onClick={onGoToCatat}

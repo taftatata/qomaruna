@@ -1,18 +1,18 @@
 // src/app/api/qada/route.ts
 //
-// GET /api/qada → ambil semua qada_entry untuk user demo (terbaru dulu).
+// GET /api/qada → ambil semua qada_entry untuk user yang login (terbaru dulu).
+// Wajib session (401 untuk guest).
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-const DEMO_UID = "demo-user-1";
-
 export async function GET() {
-  const user = await db.user.findUnique({ where: { uid: DEMO_UID } });
+  const user = await getSessionUser();
   if (!user) {
-    return NextResponse.json({ qada: [] });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const qada = await db.qadaEntry.findMany({
     where: { userId: user.id },

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ShieldCheck, Loader2 } from "lucide-react";
+import { ShieldCheck, Loader2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,11 +16,23 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 interface CekKesucianFABProps {
+  /** Kontrol buka/tutup dialog dari page (untuk seamless resume setelah login). */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** true jika user belum login → klik FAB membuka mandatory LoginDialog. */
+  isGuest: boolean;
+  /** Dipanggil saat guest mengklik FAB (page membuka LoginDialog mandatory). */
+  onRequireLogin: () => void;
   onVerified: () => void;
 }
 
-export function CekKesucianFAB({ onVerified }: CekKesucianFABProps) {
-  const [open, setOpen] = useState(false);
+export function CekKesucianFAB({
+  open,
+  onOpenChange,
+  isGuest,
+  onRequireLogin,
+  onVerified,
+}: CekKesucianFABProps) {
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -31,7 +43,7 @@ export function CekKesucianFAB({ onVerified }: CekKesucianFABProps) {
         description:
           "Kapas masih berwarna. Tetap dalam status saat ini hingga benar-benar bersih.",
       });
-      setOpen(false);
+      onOpenChange(false);
       return;
     }
     setSubmitting(true);
@@ -58,7 +70,7 @@ export function CekKesucianFAB({ onVerified }: CekKesucianFABProps) {
         description:
           "Verifikasi kapas putih tersimpan. Anda bebas mengerjakan ibadah.",
       });
-      setOpen(false);
+      onOpenChange(false);
       onVerified();
     } catch (e) {
       toast({
@@ -75,7 +87,13 @@ export function CekKesucianFAB({ onVerified }: CekKesucianFABProps) {
     <>
       <motion.button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          if (isGuest) {
+            onRequireLogin();
+            return;
+          }
+          onOpenChange(true);
+        }}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         aria-label="Cek kesucian (tes kapas)"
@@ -88,11 +106,15 @@ export function CekKesucianFAB({ onVerified }: CekKesucianFABProps) {
           "ring-2 ring-white/20",
         )}
       >
-        <ShieldCheck className="size-5" />
+        {isGuest ? (
+          <Lock className="size-5" />
+        ) : (
+          <ShieldCheck className="size-5" />
+        )}
         <span className="sr-only">Cek Kesucian</span>
       </motion.button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">

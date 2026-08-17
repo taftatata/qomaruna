@@ -39,12 +39,21 @@ interface GuestStore extends GuestData {
 
 const DEFAULTS: GuestData = {
   menarcheDate: null,
-  adatHaid: 6,
+  adatHaid: 7,
   adatSuci: 23,
   mustahadahCat: MustahadahCategory.MUBTADAAH_MUMAYYIZAH,
   isOnboarded: false,
   isGuest: true,
 };
+
+/**
+ * Default Adat untuk Guest Mode (spec: Adat Haid 7 hari, Suci 23 hari).
+ * Dipakai Dashboard saat user belum login.
+ */
+export const GUEST_DEFAULTS = {
+  adatHaid: 7,
+  adatSuci: 23,
+} as const;
 
 export const useGuestStore = create<GuestStore>()(
   persist(

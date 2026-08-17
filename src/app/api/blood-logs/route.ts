@@ -3,10 +3,12 @@
 // GET  /api/blood-logs?days=60   → ambil blood_logs N hari terakhir (terbaru dulu)
 // POST /api/blood-logs            → simpan blood_log baru + trigger qada calc server-side
 //
+// Kedua endpoint wajib session (401 untuk guest). Data scoped ke user session.
 // Substitusi Firestore: data tersimpan lokal via Prisma+SQLite.
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 import {
   analyzeEpisode,
   toDomainBloodLog,
@@ -20,28 +22,16 @@ import { COLOR_BY_WEIGHT, TRAIT_BY_WEIGHT } from "@/lib/fiqh/constants";
 
 export const dynamic = "force-dynamic";
 
-const DEMO_UID = "demo-user-1";
-
-async function getDemoUser() {
-  // upsert untuk menghindari race condition.
-  return db.user.upsert({
-    where: { uid: DEMO_UID },
-    update: {},
-    create: {
-      uid: DEMO_UID,
-      adatHaid: 6,
-      adatSuci: 23,
-      mustahadahCat: "MUBTADAAH_MUMAYYIZAH",
-    },
-  });
-}
-
 export async function GET(req: NextRequest) {
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const daysParam = req.nextUrl.searchParams.get("days") ?? "60";
   const days = Math.min(Math.max(parseInt(daysParam, 10) || 60, 1), 365);
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  const user = await getDemoUser();
   const logs = await db.bloodLog.findMany({
     where: {
       userId: user.id,
@@ -65,6 +55,11 @@ interface PostBody {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let body: PostBody;
   try {
     body = await req.json();
@@ -97,8 +92,6 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-
-  const user = await getDemoUser();
 
   let endTime: Date | null = null;
   if (body.endTime) {
@@ -166,7 +159,15 @@ export async function POST(req: NextRequest) {
   );
 
   // Sisipkan qada baru (dedupe by prayerName+prayerDate+reason).
-  const newQadaEntries = [];
+  const newQadaEntries: {
+    id: string;
+    userId: string;
+    prayerName: string;
+    prayerDate: Date;
+    reason: string;
+    isResolved: boolean;
+    createdAt: Date;
+  }[] = [];
   for (const q of analysis.qadaToAdd) {
     const dup = existingQada.some(
       (e) =>

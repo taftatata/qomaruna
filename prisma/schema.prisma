@@ -9,7 +9,8 @@
 // (uid / userId as Firestore document IDs, JSON-style fields where needed).
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -21,18 +22,21 @@ datasource db {
 // Firestore collection: users
 // ───────────────────────────────────────────────────────────────────────────
 model User {
-  id            String      @id @default(cuid())
-  uid           String      @unique // Firebase UID equivalent
-  menarcheDate  DateTime? // Tanggal menarche pertama
-  adatHaid      Int         @default(6) // Durasi rata-rata haid (hari)
-  adatSuci      Int         @default(23) // Rata-rata masa suci (hari)
+  id           String      @id @default(cuid())
+  uid          String      @unique // identifier akun; untuk user terdaftar = email
+  email        String?     @unique // email login (NextAuth)
+  name         String? // nama tampilan opsional
+  passwordHash String? // hash bcrypt — null untuk akun demo/legacy
+  menarcheDate DateTime? // Tanggal menarche pertama
+  adatHaid     Int         @default(6) // Durasi rata-rata haid (hari)
+  adatSuci     Int         @default(23) // Rata-rata masa suci (hari)
   mustahadahCat String      @default("MUBTADAAH_MUMAYYIZAH") // 7 enum string
   isOnboarded  Boolean     @default(false) // true setelah user selesai onboarding Adat
-  isGuest      Boolean     @default(true) // true selama belum daftar/login
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  bloodLogs     BloodLog[]
-  qadaList      QadaEntry[]
+  isGuest      Boolean     @default(true) // legacy — true selama belum daftar/login
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  bloodLogs    BloodLog[]
+  qadaList     QadaEntry[]
 }
 
 // ───────────────────────────────────────────────────────────────────────────

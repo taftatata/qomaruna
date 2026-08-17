@@ -1,41 +1,25 @@
 // src/app/api/status/route.ts
 //
 // GET /api/status → status ibadah terkini (gabungan calculateHaidDuration +
-// classifyMustahadah + qadaCalculator). Dipakai dashboard untuk inisial load.
-//
-// CATATAN: Auto-seed blood_logs DIHAPUS — user baru yang belum catat darah
-// akan mendapat status SUCI default + Dashboard empty state CTA.
+// classifyMustahadah + qadaCalculator). Wajib session (401 untuk guest).
+// Dipakai dashboard untuk inisial load.
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 import {
   analyzeEpisode,
   toDomainBloodLog,
 } from "@/lib/fiqh";
-import { MUSTAHADAH_LABELS } from "@/lib/fiqh/types";
+import { MUSTAHADAH_LABELS, MustahadahCategory } from "@/lib/fiqh/types";
 
 export const dynamic = "force-dynamic";
 
-const DEMO_UID = "demo-user-1";
-
-async function ensureUser() {
-  const user = await db.user.upsert({
-    where: { uid: DEMO_UID },
-    update: {},
-    create: {
-      uid: DEMO_UID,
-      adatHaid: 6,
-      adatSuci: 23,
-      mustahadahCat: "MUBTADAAH_MUMAYYIZAH",
-      isOnboarded: false,
-      isGuest: true,
-    },
-  });
-  return user;
-}
-
 export async function GET() {
-  const user = await ensureUser();
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   // Ambil 60 hari terakhir (window untuk analisis + tampilan kalender).
   const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);

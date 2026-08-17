@@ -10,7 +10,6 @@ import {
   BookOpen,
   Sparkles,
   Loader2,
-  UserPlus,
 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -531,24 +530,15 @@ function Step3Classification({
           </Button>
         </div>
 
-        {/* Soft-auth CTA — langkah terakhir */}
+        {/* Informasi penyimpanan — user sudah login saat menjalani onboarding */}
         <div className="mt-3 rounded-lg bg-muted/60 p-3 text-center">
           <p className="text-[11px] text-muted-foreground mb-2">
-            Ingin menyimpan data Adat Anda secara permanen agar tidak hilang
-            saat ganti perangkat?
+            Data Adat akan tersimpan di akun Anda dan digunakan untuk
+            perhitungan LogicEngine secara akurat.
           </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full"
-            disabled
-          >
-            <UserPlus className="size-4 mr-1" />
-            Daftar / Login (segera hadir)
-          </Button>
-          <p className="text-[10px] text-muted-foreground mt-1.5">
-            Saat ini mode tamu — data tersimpan lokal di perangkat ini
+          <p className="text-[10px] text-muted-foreground">
+            Jika data terasa kurang tepat, Anda bisa mengubahnya kapan saja di
+            tab <strong>Profil</strong>.
           </p>
         </div>
       </CardContent>
