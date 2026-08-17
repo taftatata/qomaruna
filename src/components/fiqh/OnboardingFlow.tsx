@@ -95,8 +95,8 @@ export function OnboardingFlow({
     setSubmitting(true);
     try {
       // Klasifikasi awal:
-      //   isIrregular=true  → MUBTADAAH_MUMAYYIZAH (Mubtada'ah — pertama kali)
-      //   isIrregular=false → MUTADAH_MUMAYYIZAH  (Mu'tadah — sudah punya adat)
+      //   isIrregular=true  → MUBTADAAH_MUMAYYIZAH (Mubtadi'ah — pendarahan berubah-ubah)
+      //   isIrregular=false → MUTADAH_MUMAYYIZAH  (Mu'tadah — pendarahan stabil)
       const mustahadahCat = isIrregular
         ? MustahadahCategory.MUBTADAAH_MUMAYYIZAH
         : MustahadahCategory.MUTADAH_MUMAYYIZAH;
@@ -109,7 +109,7 @@ export function OnboardingFlow({
           adatHaid: values.adatHaid,
           adatSuci: values.adatSuci,
           mustahadahCat,
-          onboarded: true,
+          isOnboarded: true,
         }),
       });
       if (!res.ok) throw new Error("Gagal menyimpan data onboarding");
@@ -117,8 +117,8 @@ export function OnboardingFlow({
         title: "Onboarding selesai",
         description: `Adat Anda tersimpan. Kategori awal: ${
           isIrregular
-            ? "Mubtada'ah Mumayyizah (pertama kali)"
-            : "Mu'tadah Mumayyizah (sudah punya adat)"
+            ? "Mubtadi'ah Mumayyizah (pendarahan berubah-ubah)"
+            : "Mu'tadah Mumayyizah (pendarahan stabil)"
         }`,
       });
       onCompleted();
@@ -369,7 +369,7 @@ function Step2Adat({
             )}
           </div>
 
-          {/* adatSuci — Slider 15-60 */}
+          {/* adatSuci — Slider 15-30 */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs">Adat Suci</Label>
@@ -381,14 +381,14 @@ function Step2Adat({
               value={[adatSuci]}
               onValueChange={(v) => setValue("adatSuci", v[0], { shouldValidate: true })}
               min={15}
-              max={60}
+              max={30}
               step={1}
               className="py-2"
               aria-label="Adat Suci dalam hari"
             />
             <div className="flex justify-between text-[10px] text-muted-foreground">
               <span>15 hari (min jeda)</span>
-              <span>60 hari (maks)</span>
+              <span>30 hari (maks)</span>
             </div>
             {errors.adatSuci && (
               <p className="text-[11px] text-destructive">
@@ -448,39 +448,17 @@ function Step3Classification({
       <CardContent className="space-y-4">
         <div>
           <p className="text-sm font-medium mb-2">
-            Apakah ini pertama kali Anda mengalami pendarahan yang tidak
-            teratur?
+            Apakah pendarahan Anda biasanya stabil atau sering berubah-ubah?
           </p>
           <p className="text-xs text-muted-foreground mb-3">
-            Jawaban ini menentukan kategori default Anda. Ini hanya perkiraan
-            awal — sistem akan menyempurnakan klasifikasi saat data pendarahan
-            terkumpul.
+            Jawaban ini menentukan kategori default Anda. Sistem akan menyempurnakan
+            klasifikasi saat data pendarahan terkumpul (algoritma Tamayyiz).
           </p>
           <RadioGroup
             value={isIrregular === null ? "" : isIrregular ? "yes" : "no"}
             onValueChange={(v) => setIsIrregular(v === "yes")}
             className="space-y-2"
           >
-            <Label
-              htmlFor="r-yes"
-              className={cn(
-                "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
-                isIrregular === true
-                  ? "border-rose-600 bg-rose-50 dark:bg-rose-950/40"
-                  : "border-border hover:bg-muted/50",
-              )}
-            >
-              <RadioGroupItem value="yes" id="r-yes" className="mt-0.5" />
-              <div>
-                <p className="text-sm font-medium">
-                  Ya, pertama kali (Mubtada&apos;ah)
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Belum punya riwayat siklus — sistem akan minta Anda membedakan
-                  warna/sifat darah (Tamayyiz)
-                </p>
-              </div>
-            </Label>
             <Label
               htmlFor="r-no"
               className={cn(
@@ -493,11 +471,31 @@ function Step3Classification({
               <RadioGroupItem value="no" id="r-no" className="mt-0.5" />
               <div>
                 <p className="text-sm font-medium">
-                  Tidak, saya sudah punya adat (Mu&apos;tadah)
+                  Stabil (Mu&apos;tadah)
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  Sudah punya pola siklus teratur — sistem akan pakai adat
-                  Anda sebagai acuan utama
+                  Durasi &amp; pola haid relatif konsisten antar siklus — sistem
+                  akan pakai adat Anda sebagai acuan utama
+                </p>
+              </div>
+            </Label>
+            <Label
+              htmlFor="r-yes"
+              className={cn(
+                "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                isIrregular === true
+                  ? "border-rose-600 bg-rose-50 dark:bg-rose-950/40"
+                  : "border-border hover:bg-muted/50",
+              )}
+            >
+              <RadioGroupItem value="yes" id="r-yes" className="mt-0.5" />
+              <div>
+                <p className="text-sm font-medium">
+                  Sering berubah-ubah (Mubtadi&apos;ah)
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Durasi &amp; pola haid tidak konsisten — sistem akan minta Anda
+                  membedakan warna/sifat darah (Tamayyiz) untuk setiap episode
                 </p>
               </div>
             </Label>

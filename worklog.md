@@ -183,3 +183,65 @@ Stage Summary:
 - Soft-Auth: banner amber di atas dashboard + Login card di Profil. Soft-auth dapat di-dismiss (persisten via localStorage).
 - 7 kategori Mustahadah tetap dapat diubah kapan saja via Profil screen.
 - Auto-seed blood logs dihapus dari kedua API route (user, status). Demo data harus dibuat manual via form "Catat Darah Keluar".
+
+---
+
+Task ID: 5
+Agent: main (orchestrator)
+Task: Implement onboarding sesuai diagram logika Fikih Syafi'i per permintaan user (rename `onboarded` → `isOnboarded`, Zustand guestData store, Step 3 question baru, Adat Suci 15-30, pulse FAB, calculateHaidDuration pakai Adat sebagai parameter).
+
+Work Log:
+- **Task 1 (Prisma & State)**:
+  * Rename field Prisma `onboarded` → `isOnboarded` (semantik lebih jelas per spec user). Push via `prisma db push --accept-data-loss` (SQLite drop+add column).
+  * Update semua referensi di 5 file: `src/app/api/user/route.ts`, `src/app/api/status/route.ts`, `src/app/page.tsx`, `src/components/fiqh/ProfilScreen.tsx`, `src/components/fiqh/OnboardingFlow.tsx`, `scripts/reset-onboarding.ts`.
+  * Buat **Zustand store** `src/lib/stores/guest-store.ts` dengan middleware `persist` (localStorage key `fiqh-guest-data`):
+    - State: menarcheDate, adatHaid, adatSuci, mustahadahCat, isOnboarded, isGuest.
+    - Setters granular + `hydrate(partial)` + `reset()`.
+    - `partialize` agar hanya data (bukan function) yang di-persist.
+    - Selector `useGuestAdat()` untuk LogicEngine konsumsi.
+  * Di `page.tsx`: useEffect hydrate Zustand store dari API user data tiap kali `userQuery.data` berubah — sync server→client.
+
+- **Task 2 (Onboarding Component — 3 step)**:
+  * Step 1 (Education): tambah tombol "Mulai Isi Adat" (sebelumnya tidak ada → user stuck).
+  * Step 2 (Input Adat): Slider Adat Haid 1-15 (sudah ada), **Slider Adat Suci diubah dari 15-60 → 15-30** per spec user. Zod validation: `adatSuci.max(30)`.
+  * Step 3 (Mustahadah Classification): ganti pertanyaan dari "pertama kali pendarahan tidak teratur?" → **"Apakah pendarahan Anda biasanya stabil atau sering berubah-ubah?"**. Opsi: "Stabil (Mu'tadah)" vs "Sering berubah-ubah (Mubtadi'ah)". Toast message diperbarui sesuai.
+  * Framer Motion slide-in (x: -40 → 0 → 40) tetap dipertahankan antar step.
+
+- **Task 3 (Refactor Dashboard)**:
+  * State default SUCI sudah ada (existing).
+  * **Pulse FAB "Catat Darah Keluar"** baru di `src/components/fiqh/PulseCatatFAB.tsx`:
+    - Floating bottom-LEFT (tidak bentrok dengan CekKesucianFAB di kanan).
+    - Animasi pulse ganda (dua ring infinite scale 1→1.4 dengan delay staggered 0.9s) — efek "memancing perhatian" untuk user baru.
+    - Visible hanya saat `logsAsDomain.length === 0 && screen !== "catat"`.
+    - OnClick → `setScreen("catat")`.
+  * calculateHaidDuration di-extend dengan parameter `userAdat?: UserAdat` (adatHaid, adatSuci). Hasil sekarang include `matchesAdat: boolean | null` dan reason yang membandingkan durasi aktual vs adat user.
+  * `classifyMustahadah` sekarang pass `{ adatHaid: user.adatHaid, adatSuci: user.adatSuci }` ke `calculateHaidDuration` — LogicEngine pakai data Onboarding sebagai parameter input.
+
+- **Task 4 (Navigation Guard)**:
+  * Catatan: skill fullstack melarang route lain (`/calendar`, `/qada`, `/onboarding`) — hanya `/` yang visible.
+  * Navigation guard sudah dihandle via conditional render di `page.tsx`: jika `userQuery.data.isOnboarded === false` → return `<OnboardingFlow>` SEBELUM `<BottomNav>` dirender → user tidak bisa mengakses tab Beranda/Catat/Kalender/Qada/Profil sampai onboarding selesai. Efeknya sama dengan middleware redirect tanpa override aturan sandbox.
+
+- Lint: zero errors.
+- Agent Browser verification (mobile 375×812 + desktop 1280×800):
+  * Reset demo user → reload → onboarding muncul (Step 1).
+  * Step 1 → "Mulai Isi Adat" → Step 2 (sliders).
+  * Fill menarche 2018-06-15 → "Lanjut" → Step 3 dengan pertanyaan baru "Apakah pendarahan Anda biasanya stabil atau sering berubah-ubah?".
+  * Pilih "Stabil (Mu'tadah)" → "Selesai Onboarding" → dashboard muncul.
+  * Status: ✅ SUCI (hijau), reason "Belum ada catatan pendarahan. Status default: SUCI."
+  * Kategori Mustahadah: Mu'tadah Mumayyizah (terpilih dari "Stabil").
+  * **Pulse FAB "Catat Darah Keluar" muncul di kiri bawah** (verifikasi via DOM query: `button[aria-label="Catat Darah Keluar"]` exists).
+  * Klik Pulse FAB → otomatis switch ke tab Catat (form tampil).
+  * Soft-Auth banner tetap tampil di atas.
+  * Mobile + desktop responsive.
+  * Console zero errors.
+  * Screenshots saved: onboarding-step3-new-question.png, dashboard-pulse-fab.png, dashboard-pulse-fab-desktop.png.
+
+Stage Summary:
+- Field Prisma `isOnboarded` (default false) + `isGuest` (default true) konsisten di seluruh codebase.
+- Zustand store `guest-store.ts` aktif: hydrate dari API + persist ke localStorage untuk perhitungan client-side.
+- Onboarding 3 step dengan pertanyaan baru sesuai spec user ("stabil vs berubah-ubah").
+- Adat Suci range 15-30 (sebelumnya 15-60) sesuai spec.
+- Pulse FAB "Catat Darah Keluar" dengan animasi pulse ganda untuk user baru (no BloodLog).
+- calculateHaidDuration terima `userAdat` parameter eksplisit → LogicEngine pakai data Onboarding.
+- Navigation guard efektif via conditional render (single-route constraint dijelaskan).
+- Semua perubahan terverifikasi via Agent Browser.

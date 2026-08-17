@@ -64,7 +64,10 @@ export function classifyMustahadah(
   now: Date = new Date(),
 ): ClassifyResult {
   const category = user.mustahadahCat;
-  const dur = calculateHaidDuration(logs, now);
+  const dur = calculateHaidDuration(logs, now, HAID_MAX_DAYS, {
+    adatHaid: user.adatHaid,
+    adatSuci: user.adatSuci,
+  });
 
   // ── KASUS KHUSUS: Mutahayyirah → semua MASA IHTIYATH ────────────────────
   if (category === MustahadahCategory.MUTAHAYYIRAH) {

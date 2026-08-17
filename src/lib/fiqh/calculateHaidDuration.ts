@@ -16,7 +16,17 @@ export interface HaidDurationResult {
   totalDays: number; // jumlah hari kalender unik yang menyentuh pendarahan
   isHaid: boolean; // true jika ≥ 24 jam
   isExceedsMax: boolean; // true jika rentang pendarangan > 15 hari
+  matchesAdat: boolean | null; // true jika totalDays ≤ adatHaid (jika adat disuplai)
   reason: string;
+}
+
+/**
+ * Optional user Adat dari Onboarding — dipakai untuk membandingkan
+ * durasi aktual vs adat (kebiasaan) user. Membantu reasoning status.
+ */
+export interface UserAdat {
+  adatHaid: number; // hari (1-15)
+  adatSuci: number; // hari (15-30)
 }
 
 /**
@@ -24,11 +34,14 @@ export interface HaidDurationResult {
  * - Untuk log dengan endTime null (masih berlangsung), gunakan `now`.
  * - Beberapa log boleh overlap; kita pakai pendekatan konservatif
  *   (penjumlahan sederhana sesuai spesifikasi: sum(end - start)).
+ * - Jika `userAdat` disuplai, hasil dilengkapi flag `matchesAdat` dan
+ *   reason yang membandingkan durasi aktual vs adat user.
  */
 export function calculateHaidDuration(
   logs: BloodLog[],
   now: Date = new Date(),
   windowDays: number = HAID_MAX_DAYS,
+  userAdat?: UserAdat,
 ): HaidDurationResult {
   const windowMs = windowDays * 24 * 60 * 60 * 1000;
   const windowStart = new Date(now.getTime() - windowMs);
@@ -63,6 +76,10 @@ export function calculateHaidDuration(
   const isHaid = totalHours >= HAID_MIN_HOURS;
   const isExceedsMax = totalDays > HAID_MAX_DAYS;
 
+  // Match vs adat user (jika disuplai)
+  const matchesAdat: boolean | null =
+    userAdat && isHaid ? totalDays <= userAdat.adatHaid : null;
+
   let reason: string;
   if (inWindow.length === 0) {
     reason = "Tidak ada catatan pendarahan dalam 15 hari terakhir — diasumsikan SUCI.";
@@ -70,9 +87,17 @@ export function calculateHaidDuration(
     reason = `Total pendarahan ${totalHours.toFixed(1)} jam (< 24 jam) dalam ${totalDays} hari → ISTIHADAH (bukan haid).`;
   } else if (isExceedsMax) {
     reason = `Total ${totalDays} hari (> 15 hari maksimal) → perlu Tamayyiz untuk memisah Haid vs Istihadah.`;
+  } else if (userAdat) {
+    const adatStr = ` (adat Anda: ${userAdat.adatHaid} hari)`;
+    if (matchesAdat) {
+      reason = `Total pendarahan ${totalHours.toFixed(1)} jam selama ${totalDays} hari — sesuai adat${adatStr} → HAID sah.`;
+    } else {
+      reason = `Total pendarahan ${totalHours.toFixed(1)} jam selama ${totalDays} hari — melebihi adat${adatStr} → perlu evaluasi Tamayyiz.`;
+    }
   } else {
     reason = `Total pendarahan ${totalHours.toFixed(1)} jam selama ${totalDays} hari (≥ 24 jam & ≤ 15 hari) → HAID sah.`;
   }
 
-  return { totalHours, totalDays, isHaid, isExceedsMax, reason };
+  return { totalHours, totalDays, isHaid, isExceedsMax, matchesAdat, reason };
 }
+

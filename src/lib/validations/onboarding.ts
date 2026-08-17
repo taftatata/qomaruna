@@ -3,7 +3,7 @@
 // Zod schemas untuk onboarding flow.
 // Aturan fikih (Mazhab Syafi'i):
 //   adatHaid  : 1-15 hari  (batas maksimal haid = 15 hari 15 malam)
-//   adatSuci  : 15-60 hari (minimal jeda antar haid = 15 hari)
+//   adatSuci  : 15-30 hari (minimal jeda antar haid = 15 hari, tipikal 23-28)
 //   menarche  : wajib, tidak boleh tanggal masa depan
 
 import { z } from "zod";
@@ -27,13 +27,16 @@ export const onboardingSchema = z.object({
     .number()
     .int("Harus bilangan bulat")
     .min(15, "Minimal 15 hari (jeda antar haid)")
-    .max(60, "Maksimal 60 hari"),
+    .max(30, "Maksimal 30 hari"),
+  // Pertanyaan Step 3: "Apakah pendarahan Anda biasanya stabil atau sering berubah-ubah?"
+  //   true  → sering berubah-ubah (Mubtadi'ah)
+  //   false → stabil (Mu'tadah)
   isIrregularBleeding: z.boolean(),
 });
 
 export type OnboardingValues = z.infer<typeof onboardingSchema>;
 
-// Step 2 saja (Input Adat) — dipakai untuk validasi sebelum lanjut ke step 3
+// Step 2 saja (Input Adat)
 export const adatStepSchema = onboardingSchema.pick({
   menarcheDate: true,
   adatHaid: true,
@@ -41,3 +44,4 @@ export const adatStepSchema = onboardingSchema.pick({
 });
 
 export type AdatStepValues = z.infer<typeof adatStepSchema>;
+

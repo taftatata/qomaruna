@@ -27,7 +27,7 @@ async function ensureUser() {
       adatHaid: 6,
       adatSuci: 23,
       mustahadahCat: "MUBTADAAH_MUMAYYIZAH",
-      onboarded: false,
+      isOnboarded: false,
       isGuest: true,
     },
   });

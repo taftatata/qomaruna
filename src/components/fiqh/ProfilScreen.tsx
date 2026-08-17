@@ -35,7 +35,7 @@ interface ProfilScreenProps {
     adatHaid: number;
     adatSuci: number;
     mustahadahCat: MustahadahCategory;
-    onboarded?: boolean;
+    isOnboarded?: boolean;
     isGuest?: boolean;
   };
   onSaved: () => void;

@@ -26,12 +26,14 @@ import { BottomNav, type ScreenKey } from "@/components/fiqh/BottomNav";
 import { ProfilScreen } from "@/components/fiqh/ProfilScreen";
 import { OnboardingFlow } from "@/components/fiqh/OnboardingFlow";
 import { SoftAuthBanner } from "@/components/fiqh/SoftAuthBanner";
+import { PulseCatatFAB } from "@/components/fiqh/PulseCatatFAB";
 
 import {
   IbadahStatus,
   MustahadahCategory,
   type BloodLog,
 } from "@/lib/fiqh/types";
+import { useGuestStore } from "@/lib/stores/guest-store";
 
 // ──────────────────────────────────────────────────────────────────────────
 // Tipe respons API
@@ -43,7 +45,7 @@ interface UserData {
   adatHaid: number;
   adatSuci: number;
   mustahadahCat: MustahadahCategory;
-  onboarded: boolean;
+  isOnboarded: boolean;
   isGuest: boolean;
   createdAt: string;
   updatedAt: string;
@@ -97,6 +99,10 @@ function Dashboard() {
   const qc = useQueryClient();
   const [screen, setScreen] = React.useState<ScreenKey>("beranda");
 
+  // Zustand store for guestData (client-side persistence + real-time calc)
+  const hydrateGuest = useGuestStore((s) => s.hydrate);
+  const resetGuest = useGuestStore((s) => s.reset);
+
   const userQuery = useQuery<UserData>({
     queryKey: ["user"],
     queryFn: async () => {
@@ -106,6 +112,20 @@ function Dashboard() {
     },
   });
 
+  // Hydrate Zustand guest store dari API user data (sync server → client)
+  React.useEffect(() => {
+    if (userQuery.data) {
+      hydrateGuest({
+        menarcheDate: userQuery.data.menarcheDate,
+        adatHaid: userQuery.data.adatHaid,
+        adatSuci: userQuery.data.adatSuci,
+        mustahadahCat: userQuery.data.mustahadahCat,
+        isOnboarded: userQuery.data.isOnboarded,
+        isGuest: userQuery.data.isGuest,
+      });
+    }
+  }, [userQuery.data, hydrateGuest]);
+
   const statusQuery = useQuery<StatusData>({
     queryKey: ["status"],
     queryFn: async () => {
@@ -114,7 +134,7 @@ function Dashboard() {
       return r.json();
     },
     refetchInterval: 60_000,
-    enabled: !!userQuery.data?.onboarded,
+    enabled: !!userQuery.data?.isOnboarded,
   });
 
   const logsQuery = useQuery<BloodLogsData>({
@@ -124,7 +144,7 @@ function Dashboard() {
       if (!r.ok) throw new Error("Gagal memuat catatan darah");
       return r.json();
     },
-    enabled: !!userQuery.data?.onboarded,
+    enabled: !!userQuery.data?.isOnboarded,
   });
 
   const qadaQuery = useQuery<QadaData>({
@@ -134,7 +154,7 @@ function Dashboard() {
       if (!r.ok) throw new Error("Gagal memuat qada");
       return r.json();
     },
-    enabled: !!userQuery.data?.onboarded,
+    enabled: !!userQuery.data?.isOnboarded,
   });
 
   function refreshAll() {
@@ -148,7 +168,7 @@ function Dashboard() {
   if (userQuery.isLoading) {
     return <FullScreenLoader />;
   }
-  if (userQuery.data && !userQuery.data.onboarded) {
+  if (userQuery.data && !userQuery.data.isOnboarded) {
     return (
       <OnboardingFlow
         initialData={{
@@ -161,7 +181,7 @@ function Dashboard() {
     );
   }
 
-  // ── Dashboard (sudah onboarded) ─────────────────────────────────────────
+  // ── Dashboard (sudah onboarding) ─────────────────────────────────────────
   const isLoading =
     statusQuery.isLoading || userQuery.isLoading || logsQuery.isLoading;
 
@@ -285,6 +305,12 @@ function Dashboard() {
         active={screen}
         onChange={setScreen}
         qadaPending={qadaPending}
+      />
+
+      {/* FAB "Catat Darah Keluar" dengan pulse — hanya untuk user baru (no BloodLog) */}
+      <PulseCatatFAB
+        visible={logsAsDomain.length === 0 && screen !== "catat"}
+        onClick={() => setScreen("catat")}
       />
 
       <CekKesucianFAB onVerified={refreshAll} />

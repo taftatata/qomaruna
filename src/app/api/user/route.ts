@@ -2,13 +2,13 @@
 //
 // GET /api/user
 //   - Upsert user demo (uid="demo-user-1").
-//   - Returns `onboarded` flag (false = user baru, wajib lewati onboarding).
+//   - Returns `isOnboarded` flag (false = user baru, wajib lewati onboarding).
 //   - Auto-seed 3 blood_logs DIHAPUS — user baru mulai dari state kosong
 //     (SUCI default + CTA "Catat Darah Keluar").
 //
 // PATCH /api/user
 //   - Update adatHaid (1-15), adatSuci (15-60), mustahadahCat, menarcheDate,
-//     onboarded. Dipakai oleh onboarding flow & Profil screen.
+//     isOnboarded. Dipakai oleh onboarding flow & Profil screen.
 //
 // Catatan: substitusi Firestore — semua data tersimpan lokal via Prisma+SQLite.
 
@@ -55,8 +55,8 @@ export async function PATCH(req: Request) {
   } else if (body.menarcheDate === null) {
     data.menarcheDate = null;
   }
-  if (typeof body.onboarded === "boolean") {
-    data.onboarded = body.onboarded;
+  if (typeof body.isOnboarded === "boolean") {
+    data.isOnboarded = body.isOnboarded;
   }
   if (typeof body.isGuest === "boolean") {
     data.isGuest = body.isGuest;
@@ -81,7 +81,7 @@ export async function PATCH(req: Request) {
     adatHaid: user.adatHaid,
     adatSuci: user.adatSuci,
     mustahadahCat: user.mustahadahCat,
-    onboarded: user.onboarded,
+    isOnboarded: user.isOnboarded,
     isGuest: user.isGuest,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
@@ -92,7 +92,7 @@ export async function PATCH(req: Request) {
 // GET — ambil/autocreate user demo
 // ──────────────────────────────────────────────────────────────────────────
 export async function GET() {
-  // upsert user demo. onboarded default=false → user baru wajib onboarding.
+  // upsert user demo. isOnboarded default=false → user baru wajib onboarding.
   const user = await db.user.upsert({
     where: { uid: DEMO_UID },
     update: {},
@@ -101,7 +101,7 @@ export async function GET() {
       adatHaid: 6,
       adatSuci: 23,
       mustahadahCat: "MUBTADAAH_MUMAYYIZAH",
-      onboarded: false,
+      isOnboarded: false,
       isGuest: true,
     },
   });
@@ -118,7 +118,7 @@ export async function GET() {
     adatHaid: user.adatHaid,
     adatSuci: user.adatSuci,
     mustahadahCat: user.mustahadahCat,
-    onboarded: user.onboarded,
+    isOnboarded: user.isOnboarded,
     isGuest: user.isGuest,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
