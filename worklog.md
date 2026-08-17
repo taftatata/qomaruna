@@ -116,3 +116,70 @@ Stage Summary:
 - FAB Cek Kesucian tetap accessible, posisi di atas bottom nav (tidak overlap).
 - PATCH /api/user baru untuk update adat & kategori mustahadah dari screen Profil.
 - Semua interaksi terverifikasi via Agent Browser.
+
+---
+
+Task ID: 4
+Agent: main (orchestrator)
+Task: Implement Onboarding Spesialis Fikih sebagai entry point aplikasi, dengan multi-step form, validasi zod, empty state dashboard, dan soft-auth banner.
+
+Work Log:
+- Catatan: skill fullstack melarang route lain selain `/`. Onboarding diimplement sebagai conditional state dalam `/` (URL tetap `/`, UI render Onboarding saat `onboarded=false`).
+- Edit `prisma/schema.prisma` → tambah field `onboarded Boolean @default(false)` dan `isGuest Boolean @default(true)` pada User model. Push via `bun run db:push` + regenerate Prisma client.
+- Update `src/app/api/user/route.ts`:
+  * PATCH: tambah dukungan untuk `menarcheDate`, `onboarded`, `isGuest`.
+  * GET: hapus auto-seed 3 blood logs (user baru sekarang mulai dari state kosong).
+  * Return flag `onboarded` & `isGuest` di response.
+- Update `src/app/api/status/route.ts`:
+  * Hapus `ensureUserSeeded` auto-seed 3 blood logs, ganti dengan `ensureUser` (upsert saja).
+  * Konsisten dengan behavior GET /api/user.
+- Buat `src/lib/validations/onboarding.ts` — Zod schema:
+  * `menarcheDate` wajib, tidak boleh masa depan.
+  * `adatHaid` 1-15 (Khamsata 'Asyar).
+  * `adatSuci` 15-60.
+  * `isIrregularBleeding` boolean.
+- Buat `src/components/fiqh/OnboardingFlow.tsx` — multi-step (3) steppers:
+  * Step 1: Khamsata 'Asyar (15 Hari) — edukasi 3 syarat utama haid + tombol "Mulai Isi Adat".
+  * Step 2: Input Adat — `menarcheDate` (date input), `adatHaid` (Slider 1-15), `adatSuci` (Slider 15-60). Zod validasi inline. Submit via react-hook-form + zodResolver.
+  * Step 3: Klasifikasi Awal — radio "Ya, pertama kali (Mubtada'ah)" vs "Tidak, sudah punya adat (Mu'tadah)" → set mustahadahCat sesuai pilihan.
+  * Stepper indicator 3 progress bar berwarna rose.
+  * AnimatePresence slide-in (x: -40 → 0 → 40) antar step.
+  * Final step: tombol "Daftar / Login (segera hadir)" sebagai langkah terakhir onboarding.
+- Buat `src/components/fiqh/SoftAuthBanner.tsx` — banner amber kecil yang muncul untuk user `isGuest=true`:
+  * Teks: "Mode Tamu: Simpan data Adat Anda agar tidak hilang dengan [Daftar/Login]".
+  * Link Daftar/Login buka Dialog modal → PATCH `isGuest=false` → toast konfirmasi.
+  * Dismissible via localStorage (persisten).
+- Refactor `src/app/page.tsx`:
+  * Conditional render: jika `userQuery.data.onboarded === false` → render `<OnboardingFlow>`, jika true → render Dashboard.
+  * Tambah `enabled: !!userQuery.data?.onboarded` ke statusQuery/logsQuery/qadaQuery (skip fetch saat onboarding).
+  * Beranda empty state: jika `hasAnyLogs === false` → tampilkan card CTA dashed dengan tombol besar "Catat Darah Keluar".
+  * Tambah `<SoftAuthBanner>` di atas konten jika `isGuest=true`.
+  * Loader full-screen saat userQuery.isLoading.
+- Update `src/components/fiqh/ProfilScreen.tsx`:
+  * Tambah `AccountCard` komponen baru di bagian bawah Profil — tampilkan "Anda dalam Mode Tamu" + tombol "Daftar / Login" jika `isGuest=true`, atau "Akun terdaftar" jika `isGuest=false`.
+  * Extend `ProfilScreenProps.user` dengan `onboarded?` dan `isGuest?`.
+- Buat `scripts/reset-onboarding.ts` — utility untuk reset demo user ke state pre-onboarding (onboarded=false, clear blood logs & qada) untuk testing.
+- Lint: zero errors.
+- Agent Browser verification (mobile 375×812 + desktop 1280×800):
+  * Reset demo user → reload → onboarding muncul (Step 1: Khamsata 'Asyar education).
+  * Step 1 → "Mulai Isi Adat" → Step 2 (Input Adat with sliders).
+  * Fill menarche 2018-06-15 via JS setter + "Lanjut" → Step 3 (Klasifikasi radio).
+  * Pilih "Ya, pertama kali" → "Selesai Onboarding" → toast "Onboarding selesai" + dashboard muncul.
+  * Dashboard menampilkan: Status SUCI (hijau), reason "Belum ada catatan pendarahan. Status default: SUCI.", Kategori Mustahadah: Mubtada'ah Mumayyizah, semua stats 0, **empty state CTA "Catat Darah Keluar"** tampil (dashed rose border + tombol besar).
+  * Soft-Auth banner tampil di atas: "Mode Tamu: Simpan data Adat Anda agar tidak hilang dengan Daftar/Login".
+  * Tab Profil → "Akun & Penyimpanan" card dengan "Daftar / Login" button (sebagai alternatif banner).
+  * Tested juga "Tidak, sudah punya adat" → kategori Mu'tadah Mumayyizah → dashboard kosong SUCI.
+  * Mobile + desktop layout responsive.
+  * Console zero errors.
+  * Screenshots saved: onboarding-step1.png, onboarding-step1-mobile.png, onboarding-step3-mobile.png, dashboard-empty-suci.png, dashboard-empty-desktop.png, profil-screen.png.
+
+Stage Summary:
+- Entry point aplikasi sekarang wajib lewat Onboarding Spesialis Fikih (3 step).
+- User tidak bisa akses Dashboard jika belum set Adat (gate via `onboarded` boolean).
+- Zod validasi: adatHaid ≤ 15 (Khamsata 'Asyar), adatSuci ≥ 15, menarcheDate tidak boleh masa depan.
+- Framer Motion slide-in transition antar step (subtle x-translate + fade).
+- shadcn Slider untuk input hari (range 1-15 untuk adatHaid, 15-60 untuk adatSuci).
+- Dashboard empty state: status SUCI default + CTA "Catat Darah Keluar" yang mencolok (rose gradient, shadow, large touch target).
+- Soft-Auth: banner amber di atas dashboard + Login card di Profil. Soft-auth dapat di-dismiss (persisten via localStorage).
+- 7 kategori Mustahadah tetap dapat diubah kapan saja via Profil screen.
+- Auto-seed blood logs dihapus dari kedua API route (user, status). Demo data harus dibuat manual via form "Catat Darah Keluar".

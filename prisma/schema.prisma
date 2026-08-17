@@ -27,6 +27,8 @@ model User {
   adatHaid      Int         @default(6) // Durasi rata-rata haid (hari)
   adatSuci      Int         @default(23) // Rata-rata masa suci (hari)
   mustahadahCat String      @default("MUBTADAAH_MUMAYYIZAH") // 7 enum string
+  onboarded     Boolean     @default(false) // true setelah user selesai onboarding Adat
+  isGuest       Boolean     @default(true) // true selama belum daftar/login
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   bloodLogs     BloodLog[]

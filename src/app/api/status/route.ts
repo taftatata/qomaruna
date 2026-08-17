@@ -3,9 +3,8 @@
 // GET /api/status → status ibadah terkini (gabungan calculateHaidDuration +
 // classifyMustahadah + qadaCalculator). Dipakai dashboard untuk inisial load.
 //
-// Self-sufficient: upsert user demo + seed blood_logs jika belum ada, supaya
-// /api/status tidak bergantung pada /api/user dipanggil lebih dulu (dashboard
-// memanggil ketiga endpoint secara paralel).
+// CATATAN: Auto-seed blood_logs DIHAPUS — user baru yang belum catat darah
+// akan mendapat status SUCI default + Dashboard empty state CTA.
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -13,18 +12,13 @@ import {
   analyzeEpisode,
   toDomainBloodLog,
 } from "@/lib/fiqh";
-import {
-  MustahadahCategory,
-  MUSTAHADAH_LABELS,
-  ColorWeight,
-  TraitWeight,
-} from "@/lib/fiqh/types";
+import { MUSTAHADAH_LABELS } from "@/lib/fiqh/types";
 
 export const dynamic = "force-dynamic";
 
 const DEMO_UID = "demo-user-1";
 
-async function ensureUserSeeded() {
+async function ensureUser() {
   const user = await db.user.upsert({
     where: { uid: DEMO_UID },
     update: {},
@@ -33,72 +27,15 @@ async function ensureUserSeeded() {
       adatHaid: 6,
       adatSuci: 23,
       mustahadahCat: "MUBTADAAH_MUMAYYIZAH",
+      onboarded: false,
+      isGuest: true,
     },
   });
-
-  const existingLogs = await db.bloodLog.count({
-    where: { userId: user.id },
-  });
-  if (existingLogs === 0) {
-    const now = new Date();
-    const start1 = new Date(now);
-    start1.setDate(start1.getDate() - 2);
-    start1.setHours(12, 30, 0, 0);
-    const end1 = new Date(now);
-    end1.setDate(end1.getDate() - 1);
-    end1.setHours(0, 0, 0, 0);
-    await db.bloodLog.create({
-      data: {
-        userId: user.id,
-        startTime: start1,
-        endTime: end1,
-        colorWeight: ColorWeight.MERAH,
-        colorLabel: "Merah",
-        traitWeight: TraitWeight.KENTAL_BERBAU,
-        traitLabel: "Kental & Berbau",
-        isKapasPutih: false,
-        note: "Awal haid — 2 hari lalu siang, setelah Zuhur.",
-      },
-    });
-    const start2 = new Date(now);
-    start2.setDate(start2.getDate() - 1);
-    start2.setHours(0, 0, 0, 0);
-    const end2 = new Date(now);
-    end2.setHours(0, 0, 0, 0);
-    await db.bloodLog.create({
-      data: {
-        userId: user.id,
-        startTime: start2,
-        endTime: end2,
-        colorWeight: ColorWeight.HITAM,
-        colorLabel: "Hitam",
-        traitWeight: TraitWeight.KENTAL_BERBAU,
-        traitLabel: "Kental & Berbau",
-        isKapasPutih: false,
-        note: "Hari kedua haid — darah hitam pekat.",
-      },
-    });
-    const start3 = new Date(now);
-    start3.setHours(0, 0, 0, 0);
-    await db.bloodLog.create({
-      data: {
-        userId: user.id,
-        startTime: start3,
-        endTime: null,
-        colorWeight: ColorWeight.COKELAT,
-        colorLabel: "Cokelat",
-        traitWeight: TraitWeight.KENTAL,
-        traitLabel: "Kental",
-        isKapasPutih: false,
-        note: "Hari ketiga — pendarahan masih berlangsung.",
-      },
-    });
-  }
   return user;
 }
 
 export async function GET() {
-  const user = await ensureUserSeeded();
+  const user = await ensureUser();
 
   // Ambil 60 hari terakhir (window untuk analisis + tampilan kalender).
   const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);

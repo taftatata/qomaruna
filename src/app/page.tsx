@@ -7,7 +7,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Droplets, ShieldCheck } from "lucide-react";
+import { Droplets, ShieldCheck, PlusCircle, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,11 +24,12 @@ import { QadaList, type QadaItem } from "@/components/fiqh/QadaList";
 import { CekKesucianFAB } from "@/components/fiqh/CekKesucianFAB";
 import { BottomNav, type ScreenKey } from "@/components/fiqh/BottomNav";
 import { ProfilScreen } from "@/components/fiqh/ProfilScreen";
+import { OnboardingFlow } from "@/components/fiqh/OnboardingFlow";
+import { SoftAuthBanner } from "@/components/fiqh/SoftAuthBanner";
 
 import {
   IbadahStatus,
   MustahadahCategory,
-  MUSTAHADAH_LABELS,
   type BloodLog,
 } from "@/lib/fiqh/types";
 
@@ -42,6 +43,8 @@ interface UserData {
   adatHaid: number;
   adatSuci: number;
   mustahadahCat: MustahadahCategory;
+  onboarded: boolean;
+  isGuest: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,7 +52,6 @@ interface UserData {
 interface StatusData {
   status: IbadahStatus;
   reason: string;
-  mustahadahCategory: MustahadahCategory;
   mustahadahLabel: string;
   totalBleedingHours: number;
   totalBleedingDays: number;
@@ -89,7 +91,7 @@ interface QadaData {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Inner dashboard (menggunakan useQuery hooks)
+// Inner dashboard
 // ──────────────────────────────────────────────────────────────────────────
 function Dashboard() {
   const qc = useQueryClient();
@@ -111,7 +113,8 @@ function Dashboard() {
       if (!r.ok) throw new Error("Gagal memuat status");
       return r.json();
     },
-    refetchInterval: 60_000, // recompute tiap menit
+    refetchInterval: 60_000,
+    enabled: !!userQuery.data?.onboarded,
   });
 
   const logsQuery = useQuery<BloodLogsData>({
@@ -121,6 +124,7 @@ function Dashboard() {
       if (!r.ok) throw new Error("Gagal memuat catatan darah");
       return r.json();
     },
+    enabled: !!userQuery.data?.onboarded,
   });
 
   const qadaQuery = useQuery<QadaData>({
@@ -130,15 +134,34 @@ function Dashboard() {
       if (!r.ok) throw new Error("Gagal memuat qada");
       return r.json();
     },
+    enabled: !!userQuery.data?.onboarded,
   });
 
   function refreshAll() {
+    qc.invalidateQueries({ queryKey: ["user"] });
     qc.invalidateQueries({ queryKey: ["status"] });
     qc.invalidateQueries({ queryKey: ["blood-logs"] });
     qc.invalidateQueries({ queryKey: ["qada"] });
-    qc.invalidateQueries({ queryKey: ["user"] });
   }
 
+  // ── Conditional: Onboarding gate ────────────────────────────────────────
+  if (userQuery.isLoading) {
+    return <FullScreenLoader />;
+  }
+  if (userQuery.data && !userQuery.data.onboarded) {
+    return (
+      <OnboardingFlow
+        initialData={{
+          menarcheDate: userQuery.data.menarcheDate ?? "",
+          adatHaid: userQuery.data.adatHaid,
+          adatSuci: userQuery.data.adatSuci,
+        }}
+        onCompleted={refreshAll}
+      />
+    );
+  }
+
+  // ── Dashboard (sudah onboarded) ─────────────────────────────────────────
   const isLoading =
     statusQuery.isLoading || userQuery.isLoading || logsQuery.isLoading;
 
@@ -166,10 +189,11 @@ function Dashboard() {
 
   const qadaPending = statusQuery.data?.qadaPendingCount ?? 0;
   const currentStatus = statusQuery.data?.status ?? IbadahStatus.SUCI;
+  const isGuest = userQuery.data?.isGuest ?? true;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header — sticky, compact for mobile */}
+      {/* Header */}
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto max-w-2xl px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -189,81 +213,87 @@ function Dashboard() {
         </div>
       </header>
 
-      {/* Main — bottom padding to clear bottom nav (h-16 + safe area) */}
+      {/* Main */}
       <main className="flex-1 mx-auto w-full max-w-2xl px-4 pt-4 pb-28 sm:pb-32 flex flex-col gap-4">
         {isLoading ? (
           <LoadingState />
         ) : (
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={screen}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-              className="flex flex-col gap-4"
-            >
-              {screen === "beranda" && (
-                <BerandaScreen
-                  status={currentStatus}
-                  reason={statusQuery.data?.reason ?? ""}
-                  mustahadahLabel={statusQuery.data?.mustahadahLabel}
-                  instructions={statusQuery.data?.instructions}
-                  totalBleedingHours={
-                    statusQuery.data?.totalBleedingHours ?? 0
-                  }
-                  totalBleedingDays={
-                    statusQuery.data?.totalBleedingDays ?? 0
-                  }
-                  mustahadahCategory={
-                    userQuery.data?.mustahadahCat ??
-                    MustahadahCategory.MUBTADAAH_MUMAYYIZAH
-                  }
-                  adatHaid={userQuery.data?.adatHaid ?? 6}
-                  adatSuci={userQuery.data?.adatSuci ?? 23}
-                  qadaPending={qadaPending}
-                  qadaTotal={statusQuery.data?.qadaTotalCount ?? 0}
-                  recentLogs={logsAsDomain.slice(0, 3)}
-                  onGoToCatat={() => setScreen("catat")}
-                />
-              )}
+          <>
+            {/* Soft-Auth Banner — only for guest users */}
+            {isGuest && (
+              <SoftAuthBanner onDismiss={() => {}} />
+            )}
 
-              {screen === "catat" && <BloodEntryForm onSaved={refreshAll} />}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={screen}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                className="flex flex-col gap-4"
+              >
+                {screen === "beranda" && (
+                  <BerandaScreen
+                    status={currentStatus}
+                    reason={statusQuery.data?.reason ?? ""}
+                    mustahadahLabel={statusQuery.data?.mustahadahLabel}
+                    instructions={statusQuery.data?.instructions}
+                    totalBleedingHours={
+                      statusQuery.data?.totalBleedingHours ?? 0
+                    }
+                    totalBleedingDays={
+                      statusQuery.data?.totalBleedingDays ?? 0
+                    }
+                    mustahadahCategory={
+                      userQuery.data?.mustahadahCat ??
+                      MustahadahCategory.MUBTADAAH_MUMAYYIZAH
+                    }
+                    adatHaid={userQuery.data?.adatHaid ?? 6}
+                    adatSuci={userQuery.data?.adatSuci ?? 23}
+                    qadaPending={qadaPending}
+                    qadaTotal={statusQuery.data?.qadaTotalCount ?? 0}
+                    recentLogs={logsAsDomain.slice(0, 3)}
+                    hasAnyLogs={logsAsDomain.length > 0}
+                    onGoToCatat={() => setScreen("catat")}
+                  />
+                )}
 
-              {screen === "kalender" && (
-                <InteractiveCalendar logs={logsAsDomain} />
-              )}
+                {screen === "catat" && <BloodEntryForm onSaved={refreshAll} />}
 
-              {screen === "qada" && (
-                <QadaList
-                  items={qadaItems}
-                  onResolvedChange={() => refreshAll()}
-                />
-              )}
+                {screen === "kalender" && (
+                  <InteractiveCalendar logs={logsAsDomain} />
+                )}
 
-              {screen === "profil" && userQuery.data && (
-                <ProfilScreen user={userQuery.data} onSaved={refreshAll} />
-              )}
-            </motion.div>
-          </AnimatePresence>
+                {screen === "qada" && (
+                  <QadaList
+                    items={qadaItems}
+                    onResolvedChange={() => refreshAll()}
+                  />
+                )}
+
+                {screen === "profil" && userQuery.data && (
+                  <ProfilScreen user={userQuery.data} onSaved={refreshAll} />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </>
         )}
       </main>
 
-      {/* Bottom navigation — fixed */}
       <BottomNav
         active={screen}
         onChange={setScreen}
         qadaPending={qadaPending}
       />
 
-      {/* FAB — positioned above bottom nav, right side */}
       <CekKesucianFAB onVerified={refreshAll} />
     </div>
   );
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Beranda screen — status + stats + quick actions + recent logs
+// Beranda — sekarang dengan empty state (SUCI default + CTA)
 // ──────────────────────────────────────────────────────────────────────────
 interface BerandaScreenProps {
   status: IbadahStatus;
@@ -278,6 +308,7 @@ interface BerandaScreenProps {
   qadaPending: number;
   qadaTotal: number;
   recentLogs: BloodLog[];
+  hasAnyLogs: boolean;
   onGoToCatat: () => void;
 }
 
@@ -294,6 +325,7 @@ function BerandaScreen({
   qadaPending,
   qadaTotal,
   recentLogs,
+  hasAnyLogs,
   onGoToCatat,
 }: BerandaScreenProps) {
   return (
@@ -315,6 +347,34 @@ function BerandaScreen({
         qadaTotal={qadaTotal}
       />
 
+      {/* Empty state CTA — tampil saat belum ada BloodLog */}
+      {!hasAnyLogs && (
+        <Card className="border-dashed border-2 border-rose-200 dark:border-rose-900 bg-rose-50/40 dark:bg-rose-950/20">
+          <CardContent className="px-4 py-6 flex flex-col items-center gap-3 text-center">
+            <div className="size-14 rounded-full bg-gradient-to-br from-rose-500 to-pink-700 text-white flex items-center justify-center">
+              <Sparkles className="size-7" aria-hidden />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">
+                Selamat datang! Mulai catat pendarahan pertama Anda
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
+                Anda saat ini dalam status <strong>SUCI</strong>. Begitu darah
+                keluar, catat di sini agar sistem dapat menghitung status
+                ibadah Anda.
+              </p>
+            </div>
+            <Button
+              onClick={onGoToCatat}
+              className="bg-rose-600 hover:bg-rose-700 text-white min-h-[48px] px-6 gap-2 shadow-lg shadow-rose-500/30"
+            >
+              <PlusCircle className="size-5" />
+              Catat Darah Keluar
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Quick action — Catat Darah */}
       <Card className="py-4">
         <CardContent className="px-4 flex items-center justify-between gap-3">
@@ -334,30 +394,25 @@ function BerandaScreen({
         </CardContent>
       </Card>
 
-      {/* Recent logs */}
-      <Card>
-        <CardContent className="px-4 py-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-sm">Catatan Terbaru</h3>
-            <Badge variant="outline" className="text-[10px]">
-              {recentLogs.length} entri
-            </Badge>
-          </div>
-          {recentLogs.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-3 text-center">
-              Belum ada catatan. Mulai catat pendarahan Anda.
-            </p>
-          ) : (
+      {/* Recent logs (hide if empty) */}
+      {hasAnyLogs && (
+        <Card>
+          <CardContent className="px-4 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-sm">Catatan Terbaru</h3>
+              <Badge variant="outline" className="text-[10px]">
+                {recentLogs.length} entri
+              </Badge>
+            </div>
             <ul className="space-y-2">
               {recentLogs.map((log) => (
                 <RecentLogRow key={log.id} log={log} />
               ))}
             </ul>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Footer disclaimer inline on Beranda */}
       <p className="text-[10px] text-muted-foreground leading-relaxed pt-2">
         Aplikasi ini adalah alat bantu ibadah berdasarkan buku{" "}
         <strong>&ldquo;Darah dalam Perempuan&rdquo;</strong> (Khusnul Khotimah).
@@ -426,8 +481,16 @@ function LoadingState() {
   );
 }
 
+function FullScreenLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="size-10 rounded-full border-4 border-rose-200 border-t-rose-600 animate-spin" />
+    </div>
+  );
+}
+
 // ──────────────────────────────────────────────────────────────────────────
-// Page wrapper — provides React Query client
+// Page wrapper
 // ──────────────────────────────────────────────────────────────────────────
 export default function Home() {
   const [client] = React.useState(

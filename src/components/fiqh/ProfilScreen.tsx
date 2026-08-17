@@ -8,7 +8,8 @@ import {
   BookOpen,
   Info,
   ShieldCheck,
-  Moon,
+  UserPlus,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,8 @@ interface ProfilScreenProps {
     adatHaid: number;
     adatSuci: number;
     mustahadahCat: MustahadahCategory;
+    onboarded?: boolean;
+    isGuest?: boolean;
   };
   onSaved: () => void;
 }
@@ -236,7 +239,101 @@ export function ProfilScreen({ user, onSaved }: ProfilScreenProps) {
           </p>
         </CardContent>
       </Card>
+
+      {/* Login / Account — dipindah ke Profil sesuai permintaan */}
+      <AccountCard isGuest={user.isGuest ?? true} onSaved={onSaved} />
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// AccountCard — Daftar/Login CTA (mode tamu) atau info akun (sudah login)
+// ──────────────────────────────────────────────────────────────────────────
+function AccountCard({
+  isGuest,
+  onSaved,
+}: {
+  isGuest: boolean;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+
+  async function handleRegister() {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/user", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isGuest: false }),
+      });
+      if (!res.ok) throw new Error("Gagal mendaftarkan akun");
+      toast({
+        title: "Akun terdaftar",
+        description:
+          "Data Adat & catatan pendarahan Anda kini tersimpan permanen.",
+      });
+      onSaved();
+    } catch (e) {
+      toast({
+        title: "Gagal mendaftar",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <UserPlus className="size-4 text-rose-600" />
+          Akun &amp; Penyimpanan
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isGuest ? (
+          <>
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 p-3">
+              <p className="text-xs font-medium text-amber-900 dark:text-amber-200 mb-1">
+                Anda dalam Mode Tamu
+              </p>
+              <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                Data tersimpan lokal di perangkat ini. Daftarkan akun agar data
+                tidak hilang saat aplikasi dibersihkan atau pindah perangkat.
+              </p>
+            </div>
+            <Button
+              onClick={handleRegister}
+              disabled={saving}
+              className="w-full bg-rose-600 hover:bg-rose-700 text-white min-h-[44px]"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="size-4 mr-1 animate-spin" /> Mendaftarkan...
+                </>
+              ) : (
+                <>
+                  <UserPlus className="size-4 mr-1" /> Daftar / Login
+                </>
+              )}
+            </Button>
+          </>
+        ) : (
+          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 p-3">
+            <p className="text-xs font-medium text-emerald-900 dark:text-emerald-200 mb-1">
+              Akun terdaftar
+            </p>
+            <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
+              Data Adat &amp; catatan pendarahan tersimpan permanen dan dapat
+              diakses lintas perangkat.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

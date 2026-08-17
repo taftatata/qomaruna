@@ -1,37 +1,65 @@
 // src/app/api/user/route.ts
 //
 // GET /api/user
-//   - Mengembalikan user demo (uid="demo-user-1"), auto-create bila belum ada.
-//   - Auto-seed 2-3 sample blood_logs bila user baru dibuat (dashboard langsung
-//     memiliki data).
+//   - Upsert user demo (uid="demo-user-1").
+//   - Returns `onboarded` flag (false = user baru, wajib lewati onboarding).
+//   - Auto-seed 3 blood_logs DIHAPUS — user baru mulai dari state kosong
+//     (SUCI default + CTA "Catat Darah Keluar").
+//
+// PATCH /api/user
+//   - Update adatHaid (1-15), adatSuci (15-60), mustahadahCat, menarcheDate,
+//     onboarded. Dipakai oleh onboarding flow & Profil screen.
 //
 // Catatan: substitusi Firestore — semua data tersimpan lokal via Prisma+SQLite.
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { ColorWeight, MustahadahCategory, TraitWeight } from "@/lib/fiqh/types";
+import { MustahadahCategory } from "@/lib/fiqh/types";
 
 export const dynamic = "force-dynamic";
 
 const DEMO_UID = "demo-user-1";
 
-// PATCH /api/user
-//   Update adatHaid, adatSuci, mustahadahCat untuk user demo.
+// ──────────────────────────────────────────────────────────────────────────
+// PATCH — update user fields (dipanggil dari onboarding & Profil)
+// ──────────────────────────────────────────────────────────────────────────
 export async function PATCH(req: Request) {
   const body = await req.json().catch(() => ({}));
   const data: Record<string, unknown> = {};
 
-  if (typeof body.adatHaid === "number" && body.adatHaid >= 1 && body.adatHaid <= 15) {
+  if (
+    typeof body.adatHaid === "number" &&
+    body.adatHaid >= 1 &&
+    body.adatHaid <= 15
+  ) {
     data.adatHaid = body.adatHaid;
   }
-  if (typeof body.adatSuci === "number" && body.adatSuci >= 15 && body.adatSuci <= 60) {
+  if (
+    typeof body.adatSuci === "number" &&
+    body.adatSuci >= 15 &&
+    body.adatSuci <= 60
+  ) {
     data.adatSuci = body.adatSuci;
   }
   if (
     typeof body.mustahadahCat === "string" &&
-    Object.values(MustahadahCategory).includes(body.mustahadahCat as MustahadahCategory)
+    Object.values(MustahadahCategory).includes(
+      body.mustahadahCat as MustahadahCategory,
+    )
   ) {
     data.mustahadahCat = body.mustahadahCat;
+  }
+  if (typeof body.menarcheDate === "string") {
+    const d = new Date(body.menarcheDate);
+    if (!Number.isNaN(d.getTime())) data.menarcheDate = d;
+  } else if (body.menarcheDate === null) {
+    data.menarcheDate = null;
+  }
+  if (typeof body.onboarded === "boolean") {
+    data.onboarded = body.onboarded;
+  }
+  if (typeof body.isGuest === "boolean") {
+    data.isGuest = body.isGuest;
   }
 
   if (Object.keys(data).length === 0) {
@@ -53,14 +81,18 @@ export async function PATCH(req: Request) {
     adatHaid: user.adatHaid,
     adatSuci: user.adatSuci,
     mustahadahCat: user.mustahadahCat,
+    onboarded: user.onboarded,
+    isGuest: user.isGuest,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   });
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// GET — ambil/autocreate user demo
+// ──────────────────────────────────────────────────────────────────────────
 export async function GET() {
-  // upsert untuk menghindari race condition saat beberapa request paralel
-  // mencoba create user demo sekaligus.
+  // upsert user demo. onboarded default=false → user baru wajib onboarding.
   const user = await db.user.upsert({
     where: { uid: DEMO_UID },
     update: {},
@@ -69,77 +101,15 @@ export async function GET() {
       adatHaid: 6,
       adatSuci: 23,
       mustahadahCat: "MUBTADAAH_MUMAYYIZAH",
+      onboarded: false,
+      isGuest: true,
     },
   });
 
-  // Auto-seed 2-3 sample blood_logs bila user baru (belum punya log).
-  const existingLogs = await db.bloodLog.count({
-    where: { userId: user.id },
-  });
-  if (existingLogs === 0) {
-    // Skenario awal haid yang valid (≥ 24 jam akumulatif dalam 15 hari):
-    //   Log 1: 2 hari lalu 12:30 (di window Zuhur 12:00-15:15, sisa ≥ 5 menit)
-    //          → triggers qada Zuhur. Berakhir tengah malam (11.5 jam).
-    //   Log 2: kemarin 00:00 → hari ini 00:00 (24 jam penuh).
-    //   Log 3: hari ini 00:00 → masih berlangsung.
-    // Total: 11.5 + 24 + partial > 35 jam, 3 hari (≤ 15) → HAID (HARAM_IBADAH).
-    const now = new Date();
-    const start1 = new Date(now);
-    start1.setDate(start1.getDate() - 2);
-    start1.setHours(12, 30, 0, 0); // 2 hari lalu 12:30 → qada Zuhur
-    const end1 = new Date(now);
-    end1.setDate(end1.getDate() - 1);
-    end1.setHours(0, 0, 0, 0); // kemarin 00:00
-
-    await db.bloodLog.create({
-      data: {
-        userId: user.id,
-        startTime: start1,
-        endTime: end1,
-        colorWeight: ColorWeight.MERAH,
-        colorLabel: "Merah",
-        traitWeight: TraitWeight.KENTAL_BERBAU,
-        traitLabel: "Kental & Berbau",
-        isKapasPutih: false,
-        note: "Awal haid — 2 hari lalu siang, setelah Zuhur.",
-      },
-    });
-
-    const start2 = new Date(now);
-    start2.setDate(start2.getDate() - 1);
-    start2.setHours(0, 0, 0, 0); // kemarin 00:00
-    const end2 = new Date(now);
-    end2.setHours(0, 0, 0, 0); // hari ini 00:00
-    await db.bloodLog.create({
-      data: {
-        userId: user.id,
-        startTime: start2,
-        endTime: end2,
-        colorWeight: ColorWeight.HITAM,
-        colorLabel: "Hitam",
-        traitWeight: TraitWeight.KENTAL_BERBAU,
-        traitLabel: "Kental & Berbau",
-        isKapasPutih: false,
-        note: "Hari kedua haid — darah hitam pekat.",
-      },
-    });
-
-    const start3 = new Date(now);
-    start3.setHours(0, 0, 0, 0); // hari ini 00:00
-    await db.bloodLog.create({
-      data: {
-        userId: user.id,
-        startTime: start3,
-        endTime: null, // masih berlangsung
-        colorWeight: ColorWeight.COKELAT,
-        colorLabel: "Cokelat",
-        traitWeight: TraitWeight.KENTAL,
-        traitLabel: "Kental",
-        isKapasPutih: false,
-        note: "Hari ketiga — pendarahan masih berlangsung, warna mulai cokelat.",
-      },
-    });
-  }
+  // CATATAN: Auto-seed blood_logs DIHAPUS.
+  // User baru yang selesai onboarding akan langsung melihat Dashboard kosong
+  // (status SUCI default + CTA "Catat Darah Keluar") sesuai spec.
+  // Demo data sebelumnya di-reset via scripts/reset-onboarding.ts.
 
   return NextResponse.json({
     id: user.id,
@@ -148,6 +118,8 @@ export async function GET() {
     adatHaid: user.adatHaid,
     adatSuci: user.adatSuci,
     mustahadahCat: user.mustahadahCat,
+    onboarded: user.onboarded,
+    isGuest: user.isGuest,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   });
