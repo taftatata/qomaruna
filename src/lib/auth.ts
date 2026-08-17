@@ -10,7 +10,7 @@ import type { NextAuthOptions } from "next-auth";
 import { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
@@ -29,6 +29,7 @@ export const authOptions: NextAuthOptions = {
         const password = credentials?.password ?? "";
         if (!email || !password) return null;
 
+        const db = await getDb();
         const user = await db.user.findUnique({ where: { email } });
         // Akun tanpa passwordHash (mis. legacy demo) tidak bisa login.
         if (!user?.passwordHash) return null;
@@ -72,6 +73,7 @@ export async function getSessionUser() {
   const session = await getServerSession(authOptions);
   const uid = session?.user?.uid;
   if (!uid) return null;
+  const db = await getDb();
   return db.user.findUnique({ where: { uid } });
 }
 

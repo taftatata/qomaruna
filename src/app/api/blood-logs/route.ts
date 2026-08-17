@@ -7,7 +7,7 @@
 // Substitusi Firestore: data tersimpan lokal via Prisma+SQLite.
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import {
   analyzeEpisode,
@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const db = await getDb();
   const daysParam = req.nextUrl.searchParams.get("days") ?? "60";
   const days = Math.min(Math.max(parseInt(daysParam, 10) || 60, 1), 365);
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const db = await getDb();
   let body: PostBody;
   try {
     body = await req.json();

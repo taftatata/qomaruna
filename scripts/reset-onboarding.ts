@@ -1,7 +1,8 @@
 // Reset existing demo user to isOnboarded=false so we can test the onboarding flow
-import { db } from "../src/lib/db";
+import { getDb } from "../src/lib/db";
 
 async function main() {
+  const db = await getDb();
   const user = await db.user.findUnique({ where: { uid: "demo-user-1" } });
   if (!user) {
     console.log("Demo user not found — skipping.");

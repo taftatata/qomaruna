@@ -4,7 +4,7 @@
 // Wajib session (401 untuk guest).
 
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +14,7 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const db = await getDb();
   const qada = await db.qadaEntry.findMany({
     where: { userId: user.id },
     orderBy: { prayerDate: "desc" },

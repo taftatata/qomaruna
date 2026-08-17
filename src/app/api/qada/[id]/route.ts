@@ -4,7 +4,7 @@
 // Wajib session (401 untuk guest) — hanya pemilik qada yang bisa mengubah.
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +18,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const db = await getDb();
   const { id } = await params;
   let isResolved: boolean | undefined;
   try {

@@ -11,7 +11,7 @@
 // CATATAN: Semua data tersimpan lokal via Prisma+SQLite (substitusi Firestore).
 
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { getSessionUser, serializeUser } from "@/lib/auth";
 import { MustahadahCategory } from "@/lib/fiqh/types";
 
@@ -26,6 +26,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const db = await getDb();
   const body = await req.json().catch(() => ({}));
   const data: Record<string, unknown> = {};
 

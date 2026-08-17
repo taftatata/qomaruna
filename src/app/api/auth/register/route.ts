@@ -9,11 +9,12 @@
 
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const db = await getDb();
   const body = await req.json().catch(() => ({}));
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";

@@ -5,7 +5,7 @@
 // Dipakai dashboard untuk inisial load.
 
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import {
   analyzeEpisode,
@@ -21,6 +21,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const db = await getDb();
   // Ambil 60 hari terakhir (window untuk analisis + tampilan kalender).
   const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
   const logs = await db.bloodLog.findMany({
