@@ -20,6 +20,7 @@ import {
 } from "@/lib/fiqh/types";
 import { COLOR_BY_WEIGHT, TRAIT_BY_WEIGHT } from "@/lib/fiqh/constants";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {

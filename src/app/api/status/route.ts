@@ -13,6 +13,7 @@ import {
 } from "@/lib/fiqh";
 import { MUSTAHADAH_LABELS, MustahadahCategory } from "@/lib/fiqh/types";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {

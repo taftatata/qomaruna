@@ -15,6 +15,7 @@ import { getDb } from "@/lib/db";
 import { getSessionUser, serializeUser } from "@/lib/auth";
 import { MustahadahCategory } from "@/lib/fiqh/types";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // ──────────────────────────────────────────────────────────────────────────
