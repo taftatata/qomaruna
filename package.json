@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "build": "next build --webpack",
     "build:pages": "npx @opennextjs/cloudflare build && mv .open-next/worker.js .open-next/_worker.js"
   },
   "dependencies": {
