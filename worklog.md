@@ -29,7 +29,7 @@ Task: Implement TUGAS 1 (Prisma schema), TUGAS 2 (Fiqh logic engine), TUGAS 3 (U
 
 Work Log (subagent — completed before timeout, verified by main):
 - Edited prisma/schema.prisma — added User, BloodLog, QadaEntry models mirroring the requested Firestore document shape (uid, menarcheDate, adatHaid, adatSuci, mustahadahCat on User; startTime/endTime/colorWeight/colorLabel/traitWeight/traitLabel/isKapasPutih/note on BloodLog; prayerName/prayerDate/reason/isResolved on QadaEntry).
-- Ran `bun run db:push` successfully.
+- Ran `npm run db:push` successfully.
 - Built Fiqh Logic Engine under src/lib/fiqh/:
   * types.ts — TypeScript types/enums (ColorWeight, TraitWeight, MustahadahCategory 7 values, IbadahStatus 4 values, PrayerName, BloodLog, QadaEntry, EpisodeAnalysis).
   * constants.ts — COLOR_HIERARCHY (Hitam=5/merah=4/cokelat=3/kuning=2/keruh=1 with hex codes), TRAIT_HIERARCHY (Kental&Berbau=4 ... Encer=1), HAID_MIN_HOURS=24, HAID_MAX_DAYS=15, SUCI_MIN_DAYS=15, NIFAS_MAX_DAYS=60, NIFAS_COMMON_DAYS=40, prayer times helper.
@@ -54,7 +54,7 @@ Work Log (subagent — completed before timeout, verified by main):
 - Auto-seeded 3 blood logs (20-22 June 2026, Merah/Hitam/Cokelat) on first GET /api/user so dashboard shows data immediately.
 
 Verification (main agent):
-- Ran `bun run lint` — CLEAN, zero errors.
+- Ran `npm run lint` — CLEAN, zero errors.
 - Checked dev.log — no errors/warnings/exceptions; all API routes returning 200 OK with Prisma queries executing properly.
 - Used Agent Browser to verify end-to-end:
   * Page renders correctly with title "Darah dalam Perempuan" — no blank screen, no error boundary.
@@ -125,7 +125,7 @@ Task: Implement Onboarding Spesialis Fikih sebagai entry point aplikasi, dengan 
 
 Work Log:
 - Catatan: skill fullstack melarang route lain selain `/`. Onboarding diimplement sebagai conditional state dalam `/` (URL tetap `/`, UI render Onboarding saat `onboarded=false`).
-- Edit `prisma/schema.prisma` → tambah field `onboarded Boolean @default(false)` dan `isGuest Boolean @default(true)` pada User model. Push via `bun run db:push` + regenerate Prisma client.
+- Edit `prisma/schema.prisma` → tambah field `onboarded Boolean @default(false)` dan `isGuest Boolean @default(true)` pada User model. Push via `npm run db:push` + regenerate Prisma client.
 - Update `src/app/api/user/route.ts`:
   * PATCH: tambah dukungan untuk `menarcheDate`, `onboarded`, `isGuest`.
   * GET: hapus auto-seed 3 blood logs (user baru sekarang mulai dari state kosong).

@@ -43,12 +43,14 @@ main() {
             echo ""
             echo "📦 正在构建: $project_name..."
             
-            # 使用 bun build CLI 构建
+            # 使用 esbuild CLI 构建
             output_file="$DIST_DIR/mini-service-$project_name.js"
             
-            if bun build "$entry_path" \
+            if npx --yes esbuild "$entry_path" \
                 --outfile "$output_file" \
-                --target bun \
+                --platform=node \
+                --format=cjs \
+                --bundle \
                 --minify; then
                 echo "✅ $project_name 构建成功 -> $output_file"
                 success_count=$((success_count + 1))
