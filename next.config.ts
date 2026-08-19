@@ -5,13 +5,12 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   eslint: {
-    // Agar build tidak gagal karena error ESLint yang Anda alami di log
     ignoreDuringBuilds: true,
   },
   reactStrictMode: false,
   serverExternalPackages: ["@prisma/client"],
-  // Memperbaiki masalah "__name is not defined" yang sering muncul dari lucide-react
-  transpilePackages: ["lucide-react"],
+  // Tambahkan framer-motion di sini
+  transpilePackages: ["lucide-react", "framer-motion"],
 };
 
 export default nextConfig;
