@@ -1,6 +1,5 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -9,6 +8,7 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: false,
   serverExternalPackages: ["@prisma/client"],
+  // Library yang sering memicu error __name
   transpilePackages: ["lucide-react", "framer-motion"],
   webpack: (config) => {
     config.optimization.mangleExports = false;
