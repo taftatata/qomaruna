@@ -5,9 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { AuthSessionProvider } from "@/components/auth/session-provider";
 
-// Wajib 'edge' untuk Cloudflare Pages
-export const runtime = "edge";
-
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
