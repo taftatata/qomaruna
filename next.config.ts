@@ -9,8 +9,11 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: false,
   serverExternalPackages: ["@prisma/client"],
-  // Tambahkan framer-motion di sini
   transpilePackages: ["lucide-react", "framer-motion"],
+  webpack: (config) => {
+    config.optimization.mangleExports = false;
+    return config;
+  },
 };
 
 export default nextConfig;
